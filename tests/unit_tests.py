@@ -137,9 +137,14 @@ def test_txttocsv():
 def test_nested_tags():
     # Ensure nested tags are returned in the same order as declared
     # Regression test for where .tail was prepended in front of nested elements
-    element = etree.fromstring('<p><hi rend="#b"><ref href="https://example.org">Test</ref></hi> tail')
+    element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi></p>')
+    element.tail = ' tail'
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
-    assert etree.tostring(converted) == b'<p><hi rend="#b"><ref href="https://example.org">Test</ref></hi> tail'
+    assert etree.tostring(converted) == b'<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi></p> tail'
+
+    element = etree.fromstring('<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'code'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p>'
 
 
 def test_p_tail():
@@ -147,8 +152,21 @@ def test_p_tail():
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p>1st part. 2nd part. tail</p>'
 
+def test_p_does_not_add_space_to_punctuation():
+    # element = etree.fromstring('<p>1st <hi rend="#b">part</hi>!</p>')
+    # converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
+    # assert etree.tostring(converted) == b'<p>1st <hi rend="#b">part</hi>!</p>'
 
-def test_p_child_p_replaced_with_span_to_preserve_tag_order():
+    # element = etree.fromstring('<p>1st <hi rend="#b">part</hi>, <hi rend="#i">2nd</hi></p>')
+    # converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
+    # assert etree.tostring(converted) == b'<p>1st <hi rend="#b">part</hi>, <hi rend="#i">2nd</hi></p>'
+
+    element = etree.fromstring('<p><hi rend="#b">bold</hi>, <hi rend="#i">italics</hi>, <hi rend="#t">tt</hi>, <del>deleted</del>, <hi rend="#u">underlined</hi>, link.</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p><hi rend="#b">bold</hi>, <hi rend="#i">italics</hi>, <hi rend="#t">tt</hi>, <del>deleted</del>, <hi rend="#u">underlined</hi>, link.</p>'
+
+
+def test_p_child_p_preserves_tag_order():
     """
     Previously, nested p text was being set on the root_element.text, thus invalidating the element/tetx
     order. 
@@ -168,25 +186,25 @@ def test_p_child_p_replaced_with_span_to_preserve_tag_order():
     element = etree.fromstring('<p>1st part.<ref target="https://example.org"><hi rend="#b">2nd part.  </hi></ref>middle<p> 3rd part</p> tail</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
     # Should keep root tail
-    assert etree.tostring(converted) == b'<p>1st part. <ref target="https://example.org"><hi rend="#b">2nd part. </hi></ref>middle 3rd part tail</p>'
+    assert etree.tostring(converted) == b'<p>1st part. <ref target="https://example.org"><hi rend="#b">2nd part.</hi></ref> middle 3rd part tail</p>'
 
 
 def test_exotic_tags(xmloutput=False):
     # cover some edge cases with a specially crafted file
-    # result = load_mock_page('http://exotic_tags', xml_flag=xmloutput, tei_output=True)
-    # assert 'Teletype text' in result and 'My new car is silver.' in result
-    # filepath = os.path.join(TEST_DIR, 'cache', 'exotic_tags_tei.html')
-    # with open(filepath) as f:
-    #     content = etree.fromstring(f.read())
-    # res = xml.check_tei(content, 'http://dummy')
-    # assert etree.tostring(res).startswith(b'<html>\n<text>\n<body>\n<div>\n\n<hi rend="uppercase">Hello</hi>\n<p>Teletype text</p>')
-    # # misformed HTML declaration
-    # htmlstring = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" 2012"http://www.w3.org/TR/html4/loose.dtd"><html><head></head><body><p>ABC</p></body></html>'
-    # # outputs '012"http://www.w3.org/TR/html4/loose.dtd">\nABC'
-    # assert 'ABC' in extract(htmlstring, config=ZERO_CONFIG)
-    # # quotes
-    # assert handle_quotes(etree.Element('quote'), False, ZERO_CONFIG) is None
-    # assert handle_table(etree.Element('table'), TAG_CATALOG, False, ZERO_CONFIG) is None
+    result = load_mock_page('http://exotic_tags', xml_flag=xmloutput, tei_output=True)
+    assert 'Teletype text' in result and 'My new car is silver.' in result
+    filepath = os.path.join(TEST_DIR, 'cache', 'exotic_tags_tei.html')
+    with open(filepath) as f:
+        content = etree.fromstring(f.read())
+    res = xml.check_tei(content, 'http://dummy')
+    assert etree.tostring(res).startswith(b'<html>\n<text>\n<body>\n<div>\n\n<hi rend="uppercase">Hello</hi>\n<p>Teletype text</p>')
+    # misformed HTML declaration
+    htmlstring = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" 2012"http://www.w3.org/TR/html4/loose.dtd"><html><head></head><body><p>ABC</p></body></html>'
+    # outputs '012"http://www.w3.org/TR/html4/loose.dtd">\nABC'
+    assert 'ABC' in extract(htmlstring, config=ZERO_CONFIG)
+    # quotes
+    assert handle_quotes(etree.Element('quote'), False, ZERO_CONFIG) is None
+    assert handle_table(etree.Element('table'), TAG_CATALOG, False, ZERO_CONFIG) is None
     # p within p
     element, second = etree.Element('p'), etree.Element('p')
     element.text, second.text = '1st part.', '2nd part.'
@@ -196,39 +214,39 @@ def test_exotic_tags(xmloutput=False):
     converted = handle_paragraphs(element, ['p'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p>1st part. 2nd part.</p>'
     # malformed lists (common error)
-#     result = etree.tostring(handle_lists(etree.fromstring('<list>Description of the list:<item>List item 1</item><item>List item 2</item><item>List item 3</item></list>'), False, ZERO_CONFIG))
-#     assert result.count(b'List item') == 3
-#     assert b"Description" in result
-#     # HTML5: <details>
-#     htmlstring = '<html><body><article><details><summary>Epcot Center</summary><p>Epcot is a theme park at Walt Disney World Resort featuring exciting attractions, international pavilions, award-winning fireworks and seasonal special events.</p></details></article></body></html>'
-#     my_result = extract(htmlstring, no_fallback=True, config=ZERO_CONFIG)
-#     assert 'Epcot Center' in my_result and 'award-winning fireworks' in my_result
-#     my_result = extract(htmlstring, no_fallback=False, config=ZERO_CONFIG)
-#     assert 'Epcot Center' in my_result and 'award-winning fireworks' in my_result
-#     # tables with nested elements
-#     htmlstring = '''<html><body><article>
-# <table>
-# <tr><td><b>Present Tense</b></td>
-# <td>I buy</td>
-# <td>you buy</td>
-# <td>he/she/it buys</td>
-# <td>we buy</td>
-# <td>you buy</td>
-# <td>they buy</td>
-# </tr>
-#     </table></article></body></html>'''
-#     my_result = extract(htmlstring, no_fallback=True, output_format='xml', include_formatting=True, config=ZERO_CONFIG)
-#     assert '''<row>
-#         <cell>
-#           <hi>Present Tense</hi>
-#         </cell>
-#         <cell>I buy</cell>
-#         <cell>you buy</cell>
-#         <cell>he/she/it buys</cell>
-#         <cell>we buy</cell>
-#         <cell>you buy</cell>
-#         <cell>they buy</cell>
-#       </row>''' in my_result
+    result = etree.tostring(handle_lists(etree.fromstring('<list>Description of the list:<item>List item 1</item><item>List item 2</item><item>List item 3</item></list>'), False, ZERO_CONFIG))
+    assert result.count(b'List item') == 3
+    assert b"Description" in result
+    # HTML5: <details>
+    htmlstring = '<html><body><article><details><summary>Epcot Center</summary><p>Epcot is a theme park at Walt Disney World Resort featuring exciting attractions, international pavilions, award-winning fireworks and seasonal special events.</p></details></article></body></html>'
+    my_result = extract(htmlstring, no_fallback=True, config=ZERO_CONFIG)
+    assert 'Epcot Center' in my_result and 'award-winning fireworks' in my_result
+    my_result = extract(htmlstring, no_fallback=False, config=ZERO_CONFIG)
+    assert 'Epcot Center' in my_result and 'award-winning fireworks' in my_result
+    # tables with nested elements
+    htmlstring = '''<html><body><article>
+<table>
+<tr><td><b>Present Tense</b></td>
+<td>I buy</td>
+<td>you buy</td>
+<td>he/she/it buys</td>
+<td>we buy</td>
+<td>you buy</td>
+<td>they buy</td>
+</tr>
+    </table></article></body></html>'''
+    my_result = extract(htmlstring, no_fallback=True, output_format='xml', include_formatting=True, config=ZERO_CONFIG)
+    assert '''<row>
+        <cell>
+          <hi>Present Tense</hi>
+        </cell>
+        <cell>I buy</cell>
+        <cell>you buy</cell>
+        <cell>he/she/it buys</cell>
+        <cell>we buy</cell>
+        <cell>you buy</cell>
+        <cell>they buy</cell>
+      </row>''' in my_result
     
 
 def test_lrucache():
@@ -286,7 +304,7 @@ def test_formatting():
     # nested
     my_document = html.fromstring('<html><body><p><b>This here is in bold and <i>italic</i> font.</b></p></body></html>')
     my_result = extract(my_document, output_format='xml', include_formatting=True, config=ZERO_CONFIG)
-    assert '<hi rend="#b">This here is in bold and italic font.</hi>' in my_result
+    assert '<hi rend="#b">This here is in bold and <hi rend="#i">italic</hi> font. </hi>' in my_result
     # empty
     my_document = html.fromstring('<html><body><p><b><i></i></b></p></body></html>')
     my_result = extract(my_document, output_format='xml', include_formatting=True, config=ZERO_CONFIG)

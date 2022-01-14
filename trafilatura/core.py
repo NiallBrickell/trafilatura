@@ -36,7 +36,7 @@ LOGGER = logging.getLogger(__name__)
 
 FORMATTING_PROTECTED = {'cell', 'head', 'hi', 'item', 'p', 'quote', 'td'}
 SPACING_PROTECTED = {'code', 'hi', 'ref'}
-P_FORMATTING = {'hi', 'ref'}
+P_FORMATTING = {'hi', 'ref', 'del'}
 TABLE_ELEMS = {'td', 'th'}
 TABLE_ALL = {'td', 'th', 'hi'}
 FORMATTING = {'hi', 'ref', 'span'}
@@ -191,158 +191,35 @@ def handle_other_elements(element, potential_tags, dedupbool, config):
         LOGGER.debug('unexpected element seen: %s %s', element.tag, element.text)
     return None
 
+
 def handle_child_tag(e):
     if e.tag == 'p':
         e.tag = 'span'
     return e
 
 
-# def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True):
-#     processed_element = etree.Element(child.tag)
-
-#     if child.tag not in potential_tags and child.tag != 'done':
-#         LOGGER.debug('unexpected in p: %s %s %s', child.tag, child.text, child.tail)
-#         return None
-
-#     # preserve_spaces=True
-#     processed_child = handle_textnode(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
-#     if processed_child is not None:
-#         # handle formatting
-#         newsub = etree.Element(child.tag)
-#         if processed_child.tag == 'p' or processed_child.tag in P_FORMATTING:
-#             # correct attributes
-#             handle_child_tag(newsub)
-#             if child.tag == 'hi':
-#                 newsub.set('rend', child.get('rend'))
-#             elif child.tag == 'ref':
-#                 if child.get('target') is not None:
-#                     newsub.set('target', child.get('target'))
-#                 # to be removed after thorough testing
-#                 elif child.get('href') is not None:
-#                     newsub.set('target', child.get('href'))
-#             newsub.text, newsub.tail = processed_child.text, processed_child.tail
-#             processed_element.append(newsub)
-#             child.tag = 'done'
-
-#     if not is_root:
-#         handle_child_tag(processed_element)
-    
-#     _l = len(child)
-#     _has_non_text_element = False
-#     for i, _c in enumerate(child):
-#         _r = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False)
-#         if _r:
-#             # Continue to add to root element text if we can
-#             import pdb; pdb.set_trace()
-#             if _r.tag == 'span' and not len(_r.child):
-#                 if not _has_non_text_element:
-#                     if not processed_element.text:
-#                         processed_element.text = (_r.text or '') 
-#                         continue
-#                     else:
-#                         processed_element.text += ' ' + _r.text
-#                 elif i == _l - 1:
-#                     # Last element, can add to tail text
-#                     if not processed_element.tail:
-#                         processed_element.tail = (_r.text or '') + (_r.tail or '')
-#             _has_non_text_element = True
-#             # if _r.tag == 'p':
-#             #     # Only append the contents to avoid nested p's
-#             #     for _n in _r.xpath('node()'):
-#             #         if isinstance(_n, str):
-#             #             if processed_element.text is None:
-#             #                 processed_element.text = ''
-#             #             processed_element.text += _n
-#             #         else:
-#             #             processed_element.append(_n)
-#             # else:
-#             processed_element.append(_r)
-
-#     return processed_element
-
-# Use a class to ensure pass by reference when recursing in handle_paragraphs_child
-# HasSeenNonP = type('HasSeenNonP', (), {'seen': False})
+def should_have_space_prior(x):
+    c = x[0]
+    if c == ' ':
+        return False
+    if re.match(r'[\.\?\!\,\:\;]', c):
+        return False
+    return True
 
 
-# def handle_paragraphs_child(child, potential_tags, dedupbool, config, processed_element=None, has_seen_non_p=None):
-#     if child is None:
-#         return processed_element
+def concat_with_space(a, b):
+    if not a:
+        return b
+    if not b:
+        return a
+    b = trim(b)
+    if a.endswith(' ') or not should_have_space_prior(b):
+        return a + b
 
-#     is_root = False
-#     if processed_element is None:
-#         is_root = True
-#         has_seen_non_p = HasSeenNonP()
-#         has_seen_non_p.seen = False
-#         processed_element = etree.Element(child.tag)
-
-#     # Use child_tag to ensure we can continue to check the original child tag even when updated, e.g.
-#     # to see if we are in p or tail
-#     child_tag = child.tag
-#     if child_tag not in potential_tags and child_tag != 'done':
-#         LOGGER.debug('unexpected in p: %s %s %s', child.tag, child.text, child.tail)
-#         return processed_element
-
-#     # preserve_spaces=True
-#     child.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
-
-#     # handle formatting
-#     print('\n')
-#     print(etree.tostring(child))
-#     print(child.text)
-#     print(child.tail)
-#     print(has_seen_non_p.seen)
-#     newsub = etree.Element(child_tag)
-#     if child_tag == 'p' and not has_seen_non_p.seen:
-#         if not processed_element.text:
-#             processed_element.text = child.text
-#         elif not processed_element.tail:
-#             processed_element.tail += ' ' + child.text
-#         else:
-#             processed_element.text += ' ' + child.text
-#     elif child_tag in P_FORMATTING:
-#         has_seen_non_p.seen = True
-#         # correct attributes
-#         handle_child_tag(newsub)
-#         if child.tag == 'hi':
-#             newsub.set('rend', child.get('rend'))
-#         elif child.tag == 'ref':
-#             if child.get('target') is not None:
-#                 newsub.set('target', child.get('target'))
-#             # to be removed after thorough testing
-#             elif child.get('href') is not None:
-#                 newsub.set('target', child.get('href'))
-#         newsub.text, newsub.tail = child.text, child.tail
-#         processed_element.append(newsub)
-#         child.tag = 'done'
-        
-#     if not is_root:
-#         handle_child_tag(child)
-
-#     for i, _c in enumerate(child):
-#         if child_tag == 'p' and not has_seen_non_p.seen:
-#             # Append to root
-#             append_to = processed_element
-#         else:
-#             append_to = newsub
-#         handle_paragraphs_child(_c, potential_tags, dedupbool, config, processed_element=append_to, has_seen_non_p=has_seen_non_p)
-
-#     if child.tail and not has_seen_non_p.seen:
-#         if not processed_element.text:
-#             processed_element.text = child.tail
-#         else:
-#             processed_element.text += ' ' + child.tail
-
-#     processed_element.text = trim(processed_element.text)
-#     if not is_root and processed_element.text:
-#         processed_element.text += ' '
-
-#     return processed_element
-
-# Use a class to ensure pass by reference when recursing in handle_paragraphs_child
-HasSeenNonP = type('HasSeenNonP', (), {'seen': False})
+    return a + ' ' + b
 
 
-def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=True):
+def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=False, has_tail=False):
     processed_element = etree.Element(child.tag)
 
     processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
@@ -366,9 +243,8 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
         handle_child_tag(processed_element)
 
     # Iterate over each child element. If text, append to previous element's tail. Else, append to root.
-    i = 0
     child_len = len(child)
-    if child_len == 0:
+    if child_len == 0 and is_root:
         is_last_of_root = True
     last_element = processed_element
     for i, _c in enumerate(child):
@@ -376,30 +252,38 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
             LOGGER.debug('unexpected in p: %s %s %s', _c.tag, _c.text, _c.tail)
             continue
 
-        is_last_of_root = is_root and i == child_len - 1
-        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_last_of_root)
+        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or bool(processed_element.tail))
         if res.tag == 'span':
             if res.text:
-                last_element.tail = (last_element.tail or '') + res.text
+                # last_element_text_editable
+                if last_element.tag in ('p', 'span'):
+                    last_element.text = concat_with_space(last_element.text, res.text)
+                else:
+                    last_element.tail = concat_with_space(last_element.tail, res.text)
 
             if len(res) > 0:
                 processed_element.append(res)
                 last_element = res
 
             if res.tail:
-                if res.text:
-                    last_element.tail = (last_element.tail or '') + ' ' + res.tail
+                # last_element_text_editable
+                if last_element.tag in ('p', 'span'):
+                    last_element.text = concat_with_space(last_element.text, res.tail)
                 else:
-                    last_element.tail = (last_element.tail or '') + res.tail
+                    last_element.tail = concat_with_space(last_element.tail, res.tail)
         else:
             processed_element.append(res)
             last_element = res
 
     processed_element.text = trim(processed_element.text)
     processed_element.tail = trim(processed_element.tail)
-    if processed_element.text and not processed_element.tail:
+    if processed_element.tail and (processed_element.text or len(processed_element)) and should_have_space_prior(processed_element.tail):
+        processed_element.tail = ' ' + processed_element.tail
+
+    # We want to add a space to text if the text is the last part of the element - ie not root or root and children
+    if not has_tail and not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)):
         processed_element.text += ' '
-    elif processed_element.tail and not is_last_of_root:
+    elif processed_element.tail and not is_last_of_root and not is_root:
         processed_element.tail += ' '
 
     return processed_element

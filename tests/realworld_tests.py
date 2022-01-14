@@ -114,6 +114,7 @@ MOCK_PAGES = {
 'https://www.reuters.com/article/us-awards-sag/parasite-scores-upset-at-sag-awards-boosting-oscar-chances-idUSKBN1ZI0EH': 'reuters.com.parasite.html',
 'https://vancouversun.com/technology/microsoft-moves-to-erase-its-carbon-footprint-from-the-atmosphere-in-climate-push/wcm/76e426d9-56de-40ad-9504-18d5101013d2': 'vancouversun.com.microsoft.html',
 'https://www.lanouvellerepublique.fr/indre-et-loire/commune/saint-martin-le-beau/family-park-la-derniere-saison-a-saint-martin-le-beau': 'lanouvellerepublique.fr.martin.html',
+'https://review.firstround.com/use-this-equation-to-determine-diagnose-and-repair-trust': 'first-round-trust.html',
 }
 # '': '', \
 
