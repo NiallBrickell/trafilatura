@@ -12,7 +12,7 @@ import re
 from lxml import etree
 from lxml.html.clean import Cleaner
 
-from .filters import duplicate_test, textfilter
+from .filters import duplicate_test, textfilter, textfilter_text
 from .settings import CUT_EMPTY_ELEMS, DEFAULT_CONFIG, MANUALLY_CLEANED, MANUALLY_STRIPPED
 from .utils import trim
 
@@ -248,38 +248,41 @@ def convert_tags(tree, include_formatting=False, include_tables=False, include_i
             subelem.tag = 'head'
     return tree
 
+def clean_element_text(element, from_tail=False, comments_fix=True, deduplicate=True, preserve_spaces=False, config=DEFAULT_CONFIG):
+    if from_tail:
+        text = element.tail
+    else:
+        text = element.text
 
-def handle_textnode(element, comments_fix=True, deduplicate=True, preserve_spaces=False, config=DEFAULT_CONFIG):
-    '''Convert, format, and probe potential text elements'''
-    if element.text is None and element.tail is None:
+    if text is None:
         return None
+
     # lb bypass
     if comments_fix is False and element.tag == 'lb':
-        element.tail = trim(element.tail)
-        # if textfilter(element) is True:
-        #     return None
-        # duplicate_test(subelement)?
-        return element
-    if element.text is None:
-        # try the tail
-        # LOGGER.debug('using tail for element %s', element.tag)
-        element.text = element.tail
-        element.tail = ''
-        # handle differently for br/lb
-        if comments_fix is True and element.tag == 'lb':
-            element.tag = 'p'
+        return trim(element.tail) 
+    
     # trim
     if preserve_spaces is False:
-        element.text = trim(element.text)
-        if element.tail:
-            element.tail = trim(element.tail)
+        text = trim(text) + ' '
+    
     # filter content
-    if not element.text or not re.search(r'\w', element.text):  # text_content()?
+    if not text or not re.search(r'\w', text):
         return None
-    if textfilter(element) is True:
+
+    if textfilter_text(text) is True:
         return None
+
     if deduplicate is True and duplicate_test(element, config) is True:
         return None
+
+    return text
+
+
+def handle_textnode(element, *args, **kwargs):
+    text = clean_element_text(element, *args, **kwargs)
+    if text is None:
+        return None
+    element.text = text
     return element
 
 

@@ -22,7 +22,7 @@ from .filters import (check_html_lang, content_fingerprint, duplicate_test,
                      language_filter, text_chars_test)
 from .htmlprocessing import (convert_tags, handle_textnode,
                              link_density_test, link_density_test_tables,
-                             process_node, prune_unwanted_nodes, tree_cleaning)
+                             process_node, prune_unwanted_nodes, clean_element_text, tree_cleaning)
 from .metadata import extract_metadata, METADATA_LIST
 from .settings import use_config, DEFAULT_CONFIG, TAG_CATALOG
 from .utils import load_html, trim, txttocsv, uniquify_list, is_image_file
@@ -191,6 +191,219 @@ def handle_other_elements(element, potential_tags, dedupbool, config):
         LOGGER.debug('unexpected element seen: %s %s', element.tag, element.text)
     return None
 
+def handle_child_tag(e):
+    if e.tag == 'p':
+        e.tag = 'span'
+    return e
+
+
+# def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True):
+#     processed_element = etree.Element(child.tag)
+
+#     if child.tag not in potential_tags and child.tag != 'done':
+#         LOGGER.debug('unexpected in p: %s %s %s', child.tag, child.text, child.tail)
+#         return None
+
+#     # preserve_spaces=True
+#     processed_child = handle_textnode(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
+#     if processed_child is not None:
+#         # handle formatting
+#         newsub = etree.Element(child.tag)
+#         if processed_child.tag == 'p' or processed_child.tag in P_FORMATTING:
+#             # correct attributes
+#             handle_child_tag(newsub)
+#             if child.tag == 'hi':
+#                 newsub.set('rend', child.get('rend'))
+#             elif child.tag == 'ref':
+#                 if child.get('target') is not None:
+#                     newsub.set('target', child.get('target'))
+#                 # to be removed after thorough testing
+#                 elif child.get('href') is not None:
+#                     newsub.set('target', child.get('href'))
+#             newsub.text, newsub.tail = processed_child.text, processed_child.tail
+#             processed_element.append(newsub)
+#             child.tag = 'done'
+
+#     if not is_root:
+#         handle_child_tag(processed_element)
+    
+#     _l = len(child)
+#     _has_non_text_element = False
+#     for i, _c in enumerate(child):
+#         _r = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False)
+#         if _r:
+#             # Continue to add to root element text if we can
+#             import pdb; pdb.set_trace()
+#             if _r.tag == 'span' and not len(_r.child):
+#                 if not _has_non_text_element:
+#                     if not processed_element.text:
+#                         processed_element.text = (_r.text or '') 
+#                         continue
+#                     else:
+#                         processed_element.text += ' ' + _r.text
+#                 elif i == _l - 1:
+#                     # Last element, can add to tail text
+#                     if not processed_element.tail:
+#                         processed_element.tail = (_r.text or '') + (_r.tail or '')
+#             _has_non_text_element = True
+#             # if _r.tag == 'p':
+#             #     # Only append the contents to avoid nested p's
+#             #     for _n in _r.xpath('node()'):
+#             #         if isinstance(_n, str):
+#             #             if processed_element.text is None:
+#             #                 processed_element.text = ''
+#             #             processed_element.text += _n
+#             #         else:
+#             #             processed_element.append(_n)
+#             # else:
+#             processed_element.append(_r)
+
+#     return processed_element
+
+# Use a class to ensure pass by reference when recursing in handle_paragraphs_child
+# HasSeenNonP = type('HasSeenNonP', (), {'seen': False})
+
+
+# def handle_paragraphs_child(child, potential_tags, dedupbool, config, processed_element=None, has_seen_non_p=None):
+#     if child is None:
+#         return processed_element
+
+#     is_root = False
+#     if processed_element is None:
+#         is_root = True
+#         has_seen_non_p = HasSeenNonP()
+#         has_seen_non_p.seen = False
+#         processed_element = etree.Element(child.tag)
+
+#     # Use child_tag to ensure we can continue to check the original child tag even when updated, e.g.
+#     # to see if we are in p or tail
+#     child_tag = child.tag
+#     if child_tag not in potential_tags and child_tag != 'done':
+#         LOGGER.debug('unexpected in p: %s %s %s', child.tag, child.text, child.tail)
+#         return processed_element
+
+#     # preserve_spaces=True
+#     child.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
+
+#     # handle formatting
+#     print('\n')
+#     print(etree.tostring(child))
+#     print(child.text)
+#     print(child.tail)
+#     print(has_seen_non_p.seen)
+#     newsub = etree.Element(child_tag)
+#     if child_tag == 'p' and not has_seen_non_p.seen:
+#         if not processed_element.text:
+#             processed_element.text = child.text
+#         elif not processed_element.tail:
+#             processed_element.tail += ' ' + child.text
+#         else:
+#             processed_element.text += ' ' + child.text
+#     elif child_tag in P_FORMATTING:
+#         has_seen_non_p.seen = True
+#         # correct attributes
+#         handle_child_tag(newsub)
+#         if child.tag == 'hi':
+#             newsub.set('rend', child.get('rend'))
+#         elif child.tag == 'ref':
+#             if child.get('target') is not None:
+#                 newsub.set('target', child.get('target'))
+#             # to be removed after thorough testing
+#             elif child.get('href') is not None:
+#                 newsub.set('target', child.get('href'))
+#         newsub.text, newsub.tail = child.text, child.tail
+#         processed_element.append(newsub)
+#         child.tag = 'done'
+        
+#     if not is_root:
+#         handle_child_tag(child)
+
+#     for i, _c in enumerate(child):
+#         if child_tag == 'p' and not has_seen_non_p.seen:
+#             # Append to root
+#             append_to = processed_element
+#         else:
+#             append_to = newsub
+#         handle_paragraphs_child(_c, potential_tags, dedupbool, config, processed_element=append_to, has_seen_non_p=has_seen_non_p)
+
+#     if child.tail and not has_seen_non_p.seen:
+#         if not processed_element.text:
+#             processed_element.text = child.tail
+#         else:
+#             processed_element.text += ' ' + child.tail
+
+#     processed_element.text = trim(processed_element.text)
+#     if not is_root and processed_element.text:
+#         processed_element.text += ' '
+
+#     return processed_element
+
+# Use a class to ensure pass by reference when recursing in handle_paragraphs_child
+HasSeenNonP = type('HasSeenNonP', (), {'seen': False})
+
+
+def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=True):
+    processed_element = etree.Element(child.tag)
+
+    processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
+
+    if child.tag == 'p':
+        processed_element.text, processed_element.tail = child.text, child.tail
+    elif child.tag in P_FORMATTING:
+        # correct attributes
+        if child.tag == 'hi':
+            processed_element.set('rend', child.get('rend'))
+        elif child.tag == 'ref':
+            if child.get('target') is not None:
+                processed_element.set('target', child.get('target'))
+            # to be removed after thorough testing
+            elif child.get('href') is not None:
+                processed_element.set('target', child.get('href'))
+        processed_element.text, processed_element.tail = child.text, child.tail
+        child.tag = 'done'
+
+    if not is_root:
+        handle_child_tag(processed_element)
+
+    # Iterate over each child element. If text, append to previous element's tail. Else, append to root.
+    i = 0
+    child_len = len(child)
+    if child_len == 0:
+        is_last_of_root = True
+    last_element = processed_element
+    for i, _c in enumerate(child):
+        if _c.tag not in potential_tags and _c != 'done':
+            LOGGER.debug('unexpected in p: %s %s %s', _c.tag, _c.text, _c.tail)
+            continue
+
+        is_last_of_root = is_root and i == child_len - 1
+        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_last_of_root)
+        if res.tag == 'span':
+            if res.text:
+                last_element.tail = (last_element.tail or '') + res.text
+
+            if len(res) > 0:
+                processed_element.append(res)
+                last_element = res
+
+            if res.tail:
+                if res.text:
+                    last_element.tail = (last_element.tail or '') + ' ' + res.tail
+                else:
+                    last_element.tail = (last_element.tail or '') + res.tail
+        else:
+            processed_element.append(res)
+            last_element = res
+
+    processed_element.text = trim(processed_element.text)
+    processed_element.tail = trim(processed_element.tail)
+    if processed_element.text and not processed_element.tail:
+        processed_element.text += ' '
+    elif processed_element.tail and not is_last_of_root:
+        processed_element.tail += ' '
+
+    return processed_element
+
 
 def handle_paragraphs(element, potential_tags, dedupbool, config):
     '''Process paragraphs (p) elements along with their children,
@@ -204,63 +417,7 @@ def handle_paragraphs(element, potential_tags, dedupbool, config):
             return processed_element
         return None
     # children
-    processed_element = etree.Element(element.tag)
-    for child in element.iter('*'):
-        if child.tag not in potential_tags and child.tag != 'done':
-            LOGGER.debug('unexpected in p: %s %s %s', child.tag, child.text, child.tail)
-            continue
-        # spacing = child.tag in SPACING_PROTECTED  # todo: outputformat.startswith('xml')?
-        # todo: act on spacing here?
-        processed_child = handle_textnode(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=True, config=config)
-        if processed_child is not None:
-            # todo: needing attention!
-            if processed_child.tag == 'p':
-                LOGGER.debug('extra p within p: %s %s %s', processed_child.tag, processed_child.text, processed_child.tail)
-                if processed_element.text:
-                    processed_element.text += ' ' + processed_child.text
-                else:
-                    processed_element.text = processed_child.text
-                continue
-            # handle formatting
-            newsub = etree.Element(child.tag)
-            if processed_child.tag in P_FORMATTING:
-                # check depth and clean
-                if len(processed_child) > 0:
-                    for item in processed_child:  # children are lists
-                        if text_chars_test(item.text) is True:
-                            item.text = ' ' + item.text
-                        etree.strip_tags(processed_child, item.tag)
-                # correct attributes
-                if child.tag == 'hi':
-                    newsub.set('rend', child.get('rend'))
-                elif child.tag == 'ref':
-                    if child.get('target') is not None:
-                        newsub.set('target', child.get('target'))
-                    # to be removed after thorough testing
-                    elif child.get('href') is not None:
-                        newsub.set('target', child.get('href'))
-                        # del processed_child.attrib['href']
-            # handle line breaks
-            # elif processed_child.tag == 'lb':
-            #    try:
-            #        processed_child.tail = process_node(child, dedupbool, config).tail
-            #    except AttributeError:  # no text
-            #        pass
-            # prepare text
-            # todo: to be moved to handle_textnode()
-            # if text_chars_test(processed_child.text) is False:
-            #    processed_child.text = ''
-            # if text_chars_test(processed_child.tail) is False:
-            #    processed_child.tail = ''
-            # if there are already children
-            # if len(processed_element) > 0:
-            #    if text_chars_test(processed_child.tail) is True:
-            #        newsub.tail = processed_child.text + processed_child.tail
-            #    else:
-            #        newsub.tail = processed_child.text
-            newsub.text, newsub.tail = processed_child.text, processed_child.tail
-            processed_element.append(newsub)
-            child.tag = 'done'
+    processed_element = handle_paragraphs_child(element, potential_tags, dedupbool, config)
     # finish
     if len(processed_element) > 0:
         # clean trailing lb-elements

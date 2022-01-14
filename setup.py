@@ -92,7 +92,7 @@ setup(
         'courlan >= 0.6.0',
         'htmldate >= 1.0.0',
         'justext >= 3.0.0',
-        'lxml >= 4.6.4',
+        'lxml >= 4.7.1',
         'readability-lxml >= 0.8.1',
         'urllib3 >=1.26, <2',
     ],
