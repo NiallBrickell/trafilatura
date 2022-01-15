@@ -339,7 +339,7 @@ def test_formatting():
     # empty elements
     my_document = html.fromstring('<html><body><div>\t\n</div><div>There is text here.</div></body></html>')
     my_result = extract(my_document, output_format='xml', config=ZERO_CONFIG)
-    assert '<main>\n    <p>There is text here.</p>\n  </main>' in my_result
+    assert '<main>\n    <p>There is text here. </p>\n  </main>' in my_result
     # lists with links
     my_document = html.fromstring('<html><body><article><ul><li>Number 1</li><li>Number <a href="test.html">2</a></li><li>Number 3</li><p>Test</p></article></body></html>')
     my_result = extract(my_document, output_format='xml', include_links=True, config=ZERO_CONFIG)
@@ -520,6 +520,16 @@ def test_images():
     assert myimage is not None and 'alt' in myimage.attrib and 'src' in myimage.attrib and myimage.get('src').startswith('http')
 
 
+def test_nested_images():
+    with open(os.path.join(RESOURCES_DIR, 'nested_image_sample.html')) as f:
+        teststring = f.read()
+    output = extract(teststring, include_images=True, no_fallback=True, output_format='xml', config=ZERO_CONFIG)
+    assert '<graphic src="https://cdn.substack.com' in output
+
+    output = extract(teststring, include_images=True, include_links=True, no_fallback=True, output_format='xml', config=ZERO_CONFIG)
+    assert '<ref target="https://www.amazon.com/Cold-Start-Problem-Andrew-Chen/dp/0062969749/ref=tmm_hrd_swatch_0">\n        <graphic src="https://cdn.substack.com' in output
+
+
 def test_links():
     '''Test link extraction function'''
     assert handle_textelem(etree.Element('ref'), [], False, DEFAULT_CONFIG) is None
@@ -629,6 +639,7 @@ if __name__ == '__main__':
     test_formatting()
     test_exotic_tags()
     test_images()
+    test_nested_images()
     test_links()
     test_htmlprocessing()
     test_precision_recall()

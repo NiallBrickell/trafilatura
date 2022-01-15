@@ -500,9 +500,9 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
         if include_images is False:
             subtree = prune_unwanted_nodes(subtree, DISCARD_IMAGE_ELEMENTS)
         # remove elements by link density
-        subtree = delete_by_link_density(subtree, 'div', backtracking=True)
-        subtree = delete_by_link_density(subtree, 'list', backtracking=False)
-        subtree = delete_by_link_density(subtree, 'p', backtracking=False)
+        # subtree = delete_by_link_density(subtree, 'div', backtracking=True)
+        # subtree = delete_by_link_density(subtree, 'list', backtracking=False)
+        # subtree = delete_by_link_density(subtree, 'p', backtracking=False)
         # also filter fw/head, table and quote elements?
         if favor_precision is True:
             subtree = delete_by_link_density(subtree, 'head', backtracking=False)
