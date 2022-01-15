@@ -119,35 +119,17 @@ def handle_formatting(element, dedupbool, config):
     return processed_element
 
 
-def handle_lists(element, dedupbool, config):
+def handle_lists(element, potential_tags, dedupbool, config):
     '''Process lists elements'''
     processed_element = etree.Element(element.tag)
     if element.text is not None:
         processed_element.text = element.text
-    # if element.tail is not None:
-    #    processed_element.tail = element.text
+
     for child in element.iter('item'):
-        newchildelem = etree.Element('item')
-        if len(child) == 0:
-            processed_child = process_node(child, dedupbool, config)
-            if processed_child is not None:
-                newchildelem.text, newchildelem.tail = processed_child.text, processed_child.tail
-                processed_element.append(newchildelem)
-        else:
-            # proceed with iteration, fix for nested elements
-            for subelem in child.iter('*'):
-                processed_subchild = handle_textnode(subelem, comments_fix=False, deduplicate=dedupbool, config=config)
-                # add child element to processed_element
-                if processed_subchild is not None:
-                    subchildelem = etree.SubElement(newchildelem, processed_subchild.tag)
-                    subchildelem.text, subchildelem.tail = processed_subchild.text, processed_subchild.tail
-                    if subelem.tag == 'ref' and subelem.get('target') is not None:
-                        subchildelem.set('target', subelem.get('target'))
-                subelem.tag = 'done'
-            etree.strip_tags(newchildelem, 'item')
-        if newchildelem.text or len(newchildelem) > 0:
-            processed_element.append(newchildelem)
+        processed_child = handle_paragraphs_child(child, potential_tags=potential_tags, dedupbool=dedupbool, config=config)
+        processed_element.append(processed_child)
         child.tag = 'done'
+
     # test if it has children and text. Avoid double tags??
     if len(processed_element) > 0 and text_chars_test(''.join(processed_element.itertext())) is True:
         return processed_element
@@ -222,11 +204,8 @@ def concat_with_space(a, b):
 def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=False, has_tail=False):
     processed_element = etree.Element(child.tag)
 
-    if has_tail:
-        processed_element.text, processed_element.tail = child.text, child.tail
-    else:
-        processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
-        processed_element.tail = clean_element_text(child, from_tail=True, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
+    processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
+    processed_element.tail = clean_element_text(child, from_tail=True, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
 
     if child.tag == 'p':
         processed_element.text, processed_element.tail = child.text, child.tail
@@ -256,7 +235,7 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
             LOGGER.debug('unexpected in p: %s %s %s', _c.tag, _c.text, _c.tail)
             continue
 
-        # has_tail: If there is an element or text after _c, do not alter spacing
+        # has_tail: If there is an element or text after _c, do not alter text spacing
         res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or i < child_len - 1 or bool(processed_element.tail))
         if res.tag == 'span':
             # Append text to parent
@@ -284,17 +263,16 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
             processed_element.append(res)
             last_element = res
 
-    if not has_tail:
-        processed_element.text = trim(processed_element.text)
-        processed_element.tail = trim(processed_element.tail)
-        if processed_element.tail and (processed_element.text or len(processed_element)) and should_have_space_prior(processed_element.tail):
-            processed_element.tail = ' ' + processed_element.tail
+    processed_element.text = trim(processed_element.text)
+    processed_element.tail = trim(processed_element.tail)
+    if processed_element.tail and (processed_element.text or len(processed_element)) and should_have_space_prior(processed_element.tail):
+        processed_element.tail = ' ' + processed_element.tail
 
     # We want to add a space to text if the text is the last part of the element - ie not root or root and children
-        if not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)):
-            processed_element.text += ' '
-        elif processed_element.tail and not is_last_of_root and not is_root:
-            processed_element.tail += ' '
+    if not has_tail and not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)):
+        processed_element.text += ' '
+    elif processed_element.tail and not is_last_of_root and not is_root:
+        processed_element.tail += ' '
 
     return processed_element
 
@@ -317,7 +295,7 @@ def handle_paragraphs(element, potential_tags, dedupbool, config):
         # clean trailing lb-elements
         if (
             processed_element[-1].tag == 'lb'
-            and processed_element[-1].tail is None
+            # and not processed_element[-1].tail
         ):
             processed_element[-1].getparent().remove(processed_element[-1])
         return processed_element
@@ -435,7 +413,7 @@ def recover_wild_text(tree, result_body, potential_tags=TAG_CATALOG, deduplicate
     else:
         etree.strip_tags(search_tree, 'span')
     result_body.extend(e for e in
-                        [handle_textelem(element, potential_tags, deduplicate, config) for element in search_tree.iter('blockquote', 'code', 'div', 'p', 'pre', 'q', 'quote', 'table')]
+                        [handle_textelem(element, potential_tags, deduplicate, config) for element in search_tree.iter('blockquote', 'code', 'div', 'p', 'pre', 'q', 'quote', 'table', 'lb')]
                         if e is not None)
     return result_body
 
@@ -445,7 +423,7 @@ def handle_textelem(element, potential_tags, dedupbool, config):
     new_element = None
     # bypass: nested elements
     if element.tag == 'list':
-        new_element = handle_lists(element, dedupbool, config)
+        new_element = handle_lists(element, potential_tags, dedupbool, config)
     elif element.tag in CODES_QUOTES:
         new_element = handle_quotes(element, dedupbool, config)
     elif element.tag == 'head':
@@ -545,10 +523,10 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
         if 'span' not in potential_tags:
             etree.strip_tags(subtree, 'span')
         LOGGER.debug(sorted(potential_tags))
-        ##etree.strip_tags(subtree, 'lb') # BoingBoing-Bug
         # extract content
         # list(filter(None.__ne__, processed_elems))
         result_body.extend(e for e in
+                            # Filter linebreaks as they are found in the previous element
                             [handle_textelem(e, potential_tags, deduplicate, config) for e in subtree.xpath('.//*')]
                             if e is not None)
         # remove trailing titles
@@ -558,6 +536,7 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
         if len(result_body) > 1:
             LOGGER.debug(expr)
             break
+
     temp_text = trim(' '.join(result_body.itertext()))
     # try parsing wild <p> elements if nothing found or text too short
     # todo: test precision and recall settings here

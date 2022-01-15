@@ -218,7 +218,7 @@ def test_exotic_tags(xmloutput=False):
     converted = handle_paragraphs(element, ['p'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p>1st part. 2nd part.</p>'
     # malformed lists (common error)
-    result = etree.tostring(handle_lists(etree.fromstring('<list>Description of the list:<item>List item 1</item><item>List item 2</item><item>List item 3</item></list>'), False, ZERO_CONFIG))
+    result = etree.tostring(handle_lists(etree.fromstring('<list>Description of the list:<item>List item 1</item><item>List item 2</item><item>List item 3</item></list>'), ['p'], False, ZERO_CONFIG))
     assert result.count(b'List item') == 3
     assert b"Description" in result
     # HTML5: <details>
@@ -372,6 +372,10 @@ def test_formatting():
     my_document = html.fromstring('<html><body><article><h4 id="1theinoperator">1) The <code>in</code> Operator</h4><p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p></article></body></html>')
     my_result = extract(my_document, output_format='xml', no_fallback=True, include_formatting=True, config=ZERO_CONFIG)
     assert '<head rend="h4">1) The <code>in</code> Operator</head>' in my_result and '<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p>' in my_result
+
+    my_document = html.fromstring('<html><body><article><ul><li>Steuerstrafrechtliche Beratung und Vertretung:<br />Die <a href="/de/compliance-praeventionsberatung">Compliance-Spezialisten</a> helfen Ihnen, die Steuercompliance Ihres Unternehmens zu verbessern, damit Sie keine Rechtsverstöße oder gar eine Strafbarkeit riskieren. Kommt es dennoch zu einem Compliance-Verstoß oder nimmt gar die Staatsanwaltschaft Ermittlungen auf, steht Ihnen ein Anwalt für Steuerstrafrecht und <a href="/de/strafrecht">Strafrecht</a> zur Seite. Wenn es nötig ist, rund um die Uhr.</li></ul></article></body></html>')
+    my_result = extract(my_document, output_format='xml', no_fallback=True, include_formatting=True, config=ZERO_CONFIG)
+    assert '<item>Steuerstrafrechtliche Beratung und Vertretung: <lb/>Die Compliance-Spezialisten helfen Ihnen, die Steuercompliance Ihres Unternehmens zu verbessern, damit Sie keine Rechtsverstöße oder gar eine Strafbarkeit riskieren. Kommt es dennoch zu einem Compliance-Verstoß oder nimmt gar die Staatsanwaltschaft Ermittlungen auf, steht Ihnen ein Anwalt für Steuerstrafrecht und Strafrecht zur Seite. Wenn es nötig ist, rund um die Uhr.</item>' in my_result
 
 
 def test_baseline():

@@ -248,6 +248,7 @@ def convert_tags(tree, include_formatting=False, include_tables=False, include_i
             subelem.tag = 'head'
     return tree
 
+
 def clean_element_text(element, from_tail=False, comments_fix=True, deduplicate=True, preserve_spaces=False, config=DEFAULT_CONFIG):
     if from_tail:
         text = element.tail
