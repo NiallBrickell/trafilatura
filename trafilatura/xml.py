@@ -267,6 +267,7 @@ def xmltotxt(xmloutput, include_formatting, include_links):
         else:
             LOGGER.debug('unexpected element: %s', element.tag)
             returnlist.extend([textelement, ' '])
+    returnlist = [i for i in returnlist if i is not None]
     return sanitize(''.join(returnlist))
 
 
