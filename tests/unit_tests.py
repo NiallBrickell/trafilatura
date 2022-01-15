@@ -487,8 +487,14 @@ def test_external():
     assert 'localhost:80' not in extract(teststring, no_fallback=False, include_tables=False)
     with open(os.path.join(RESOURCES_DIR, 'scam.html')) as f:
         teststring = f.read()
-    assert extract(teststring, no_fallback=True, include_tables=False) == ''
-    assert extract(teststring, no_fallback=False, include_tables=False) == ''
+    table_element_texts = ['EU BENZOS', 'Queen Galaxy', 'MoneyBingo', '.onion']
+    for res in [
+        extract(teststring, no_fallback=True, include_tables=False),
+        extract(teststring, no_fallback=True, include_tables=False),
+    ]:
+        assert res.startswith('Here is the list of all the scam I and you know about.\nThis list is not complete')
+        for e in table_element_texts:
+            assert e not in res
 
 
 def test_images():

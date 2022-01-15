@@ -412,6 +412,7 @@ def recover_wild_text(tree, result_body, potential_tags=TAG_CATALOG, deduplicate
         etree.strip_tags(search_tree, 'a', 'ref', 'span')
     else:
         etree.strip_tags(search_tree, 'span')
+    potential_tags.add('div')
     result_body.extend(e for e in
                         [handle_textelem(element, potential_tags, deduplicate, config) for element in search_tree.iter('blockquote', 'code', 'div', 'p', 'pre', 'q', 'quote', 'table', 'lb')]
                         if e is not None)
