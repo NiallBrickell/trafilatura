@@ -202,7 +202,7 @@ def should_have_space_prior(x):
     c = x[0]
     if c == ' ':
         return False
-    if re.match(r'[\.\?\!\,\:\;]', c):
+    if re.match(r'[\.\?\!\,\:\;\)]', c):
         return False
     return True
 
@@ -222,7 +222,11 @@ def concat_with_space(a, b):
 def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=False, has_tail=False):
     processed_element = etree.Element(child.tag)
 
-    processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
+    if has_tail:
+        processed_element.text, processed_element.tail = child.text, child.tail
+    else:
+        processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
+        processed_element.tail = clean_element_text(child, from_tail=True, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
 
     if child.tag == 'p':
         processed_element.text, processed_element.tail = child.text, child.tail
@@ -252,39 +256,45 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
             LOGGER.debug('unexpected in p: %s %s %s', _c.tag, _c.text, _c.tail)
             continue
 
-        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or bool(processed_element.tail))
+        # has_tail: If there is an element or text after _c, do not alter spacing
+        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or i < child_len - 1 or bool(processed_element.tail))
         if res.tag == 'span':
+            # Append text to parent
             if res.text:
                 # last_element_text_editable
                 if last_element.tag in ('p', 'span'):
                     last_element.text = concat_with_space(last_element.text, res.text)
                 else:
                     last_element.tail = concat_with_space(last_element.tail, res.text)
+                res.text = None
 
             if len(res) > 0:
-                processed_element.append(res)
-                last_element = res
+                for _rc in res:
+                    processed_element.append(_rc)
+                    last_element = _rc
 
             if res.tail:
-                # last_element_text_editable
+                # Append tail to parent IF it won't affect the ordering (ie len(res) == 0)
                 if last_element.tag in ('p', 'span'):
                     last_element.text = concat_with_space(last_element.text, res.tail)
                 else:
                     last_element.tail = concat_with_space(last_element.tail, res.tail)
+                res.tail = None
         else:
             processed_element.append(res)
             last_element = res
 
-    processed_element.text = trim(processed_element.text)
-    processed_element.tail = trim(processed_element.tail)
-    if processed_element.tail and (processed_element.text or len(processed_element)) and should_have_space_prior(processed_element.tail):
-        processed_element.tail = ' ' + processed_element.tail
+    if not has_tail:
+        processed_element.text = trim(processed_element.text)
+        processed_element.tail = trim(processed_element.tail)
+        if processed_element.tail and (processed_element.text or len(processed_element)) and should_have_space_prior(processed_element.tail):
+            processed_element.tail = ' ' + processed_element.tail
 
     # We want to add a space to text if the text is the last part of the element - ie not root or root and children
-    if not has_tail and not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)):
-        processed_element.text += ' '
-    elif processed_element.tail and not is_last_of_root and not is_root:
-        processed_element.tail += ' '
+        if not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)):
+            processed_element.text += ' '
+        elif processed_element.tail and not is_last_of_root and not is_root:
+            processed_element.tail += ' '
 
     return processed_element
 

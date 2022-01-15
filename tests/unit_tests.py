@@ -146,6 +146,10 @@ def test_nested_tags():
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'code'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p>'
 
+    element = etree.fromstring('<p>The easiest way to check if a <p>Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> </p>operator</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'code'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator</p>'
+
 
 def test_p_tail():
     element = etree.fromstring('<p>1st part.<p>2nd part.</p> tail</p>')
