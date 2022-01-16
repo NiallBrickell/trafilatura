@@ -181,10 +181,23 @@ def handle_child_tag(e):
 
 
 def should_have_space_prior(x):
+    if not x:
+        return True
     c = x[0]
     if c == ' ':
         return False
     if re.match(r'[\.\?\!\,\:\;\)]', c):
+        return False
+    return True
+
+
+def should_have_space_next(x):
+    if not x:
+        return True
+    c = x[-1]
+    if c == ' ':
+        return False
+    if re.match(r'[\[\(]', c):
         return False
     return True
 
@@ -195,13 +208,77 @@ def concat_with_space(a, b):
     if not b:
         return a
     b = trim(b)
-    if a.endswith(' ') or not should_have_space_prior(b):
+    if a.endswith(' ') or not should_have_space_prior(b) or not should_have_space_next(a):
         return a + b
 
     return a + ' ' + b
 
 
-def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=False, has_tail=False):
+def enumerate_now_next(l):
+    l = iter(l)
+    i = 0
+    _now = None
+    _next = None
+    try:
+        _now = next(l)
+        _next = next(l)
+        while True:
+            yield i, (_now, _next)
+            i += 1
+            _now = _next
+            _next = next(l)
+    except StopIteration:
+        if _now is not None:
+            yield i, (_now, None)
+
+
+def get_last_inline_text(e):
+    """
+    Used to determine if the next text should include a space. So, only return inline text. 
+    """
+    tail = e.tail
+    if tail:
+        return tail
+    if not tail and len(e):
+        tail = get_last_inline_text(e[-1])
+        if tail:
+            return tail
+    return e.text
+
+
+NoText = type('NoText')
+
+
+def _get_first_inline_text(e, is_root=True):
+    """
+    Used to determine if the previous text should include a space. So, only return inline text. 
+    """
+    text = e.text
+    if not is_root and e.tag in ('graphic', 'div', 'p'):
+        return NoText
+
+    if text:
+        return text
+
+    if not text and len(e):
+        text = _get_first_inline_text(e[0], is_root=False)
+        if text:
+            return text
+
+    return e.text or e.tail
+
+
+def get_first_inline_text(e):
+    """
+    Used to determine if the previous text should include a space. So, only return inline text. 
+    """
+    text = _get_first_inline_text(e)
+    if text == NoText:
+        return None
+    return text
+
+
+def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=False, has_tail=False, next_text=None):
     processed_element = etree.Element(child.tag)
 
     processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
@@ -230,13 +307,13 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
     if child_len == 0 and is_root:
         is_last_of_root = True
     last_element = processed_element
-    for i, _c in enumerate(child):
+    for i, (_c, _next) in enumerate_now_next(child):
         if _c.tag not in potential_tags and _c != 'done':
             LOGGER.debug('unexpected in p: %s %s %s', _c.tag, _c.text, _c.tail)
             continue
 
         # has_tail: If there is an element or text after _c, do not alter text spacing
-        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or i < child_len - 1 or bool(processed_element.tail))
+        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or i < child_len - 1 or bool(processed_element.tail), next_text=get_first_inline_text(_next) if _next is not None else None)
         if res.tag == 'span':
             # Append text to parent
             if res.text:
@@ -260,18 +337,20 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
                     last_element.tail = concat_with_space(last_element.tail, res.tail)
                 res.tail = None
         else:
+            if should_have_space_prior(get_first_inline_text(res)) and should_have_space_next(get_last_inline_text(last_element)):
+                last_element.tail = (last_element.tail or '') + ' '
             processed_element.append(res)
             last_element = res
 
     processed_element.text = trim(processed_element.text)
     processed_element.tail = trim(processed_element.tail)
-    if processed_element.tail and (processed_element.text or len(processed_element)) and should_have_space_prior(processed_element.tail):
+    if processed_element.tail and (processed_element.text or len(processed_element)) and should_have_space_prior(processed_element.tail) and should_have_space_next(processed_element.text):
         processed_element.tail = ' ' + processed_element.tail
 
     # We want to add a space to text if the text is the last part of the element - ie not root or root and children
-    if not has_tail and not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)):
+    if not has_tail and not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)) and should_have_space_next(processed_element.text):
         processed_element.text += ' '
-    elif processed_element.tail and not is_last_of_root and not is_root:
+    elif processed_element.tail and not is_last_of_root and not is_root and should_have_space_next(processed_element.tail) and should_have_space_prior(next_text):
         processed_element.tail += ' '
 
     return processed_element

@@ -23,7 +23,7 @@ except ImportError:
 
 import trafilatura.filters
 import trafilatura.htmlprocessing
-from trafilatura.core import baseline, bare_extraction, extract, handle_formatting, handle_lists, handle_image, handle_paragraphs, handle_quotes, handle_table, handle_textelem, process_record, sanitize_tree, trim
+from trafilatura.core import baseline, bare_extraction, extract, handle_formatting, handle_lists, handle_image, handle_paragraphs, handle_quotes, handle_table, handle_textelem, process_record, sanitize_tree, trim, get_first_inline_text, get_last_inline_text
 from trafilatura.lru import LRUCache
 from trafilatura.filters import check_html_lang, duplicate_test, textfilter
 from trafilatura.metadata import METADATA_LIST
@@ -134,6 +134,44 @@ def test_txttocsv():
     assert isinstance(result, dict) and len(result) == 14
 
 
+def test_get_first_inline_text():
+    element = etree.fromstring('<p>Test</p>')
+    assert get_first_inline_text(element) == 'Test'
+
+    element = etree.fromstring('<p><span>Test</span></p>')
+    assert get_first_inline_text(element) == 'Test'
+
+    element = etree.fromstring('<p><ref target="https://example.org">Test</ref></p>')
+    assert get_first_inline_text(element) == 'Test'
+    element = etree.fromstring('<p><ref target="https://example.org"> Test</ref></p>')
+    assert get_first_inline_text(element) == ' Test'
+
+    element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi></p>')
+    assert get_first_inline_text(element) == 'Test'
+
+    element = etree.fromstring('<p><hi rend="#b"/>Test <hi rend="#b">two</hi></p>')
+    assert get_first_inline_text(element) == 'Test '
+
+    # If newline, should return None
+    element = etree.fromstring('<p><div>Test <hi rend="#b">two</hi></div></p>')
+    assert not get_first_inline_text(element)
+
+    # If newline, should return None
+    element = etree.fromstring('<p><p>Test <hi rend="#b">two</hi></p></p>')
+    assert not get_first_inline_text(element)
+
+
+def test_get_last_inline_text():
+    element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> <p>text</p></p>')
+    assert get_last_inline_text(element) == 'text'
+
+    element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> text</p>')
+    assert get_last_inline_text(element) == ' text'
+
+    element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> <p>test <p><p>text</p></p></p></p>')
+    assert get_last_inline_text(element) == 'text'
+
+
 def test_nested_tags():
     # Ensure nested tags are returned in the same order as declared
     # Regression test for where .tail was prepended in front of nested elements
@@ -149,6 +187,14 @@ def test_nested_tags():
     element = etree.fromstring('<p>The easiest way to check if a <p>Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> </p>operator</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'code'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator</p>'
+    
+    element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> <hi rend="#b"><ref target="https://example.org">two</ref></hi></p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> <hi rend="#b"><ref target="https://example.org">two</ref></hi></p>'
+
+    element = etree.fromstring('<p><hi rend="#i">This article is by</hi><hi rend="#i"><ref target="https://www.linkedin.com/in/sunita-mohanty/">Sunita Mohanty</ref></hi><hi rend="#i">,</hi></p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p><hi rend="#i">This article is by</hi> <hi rend="#i"><ref target="https://www.linkedin.com/in/sunita-mohanty/">Sunita Mohanty</ref></hi><hi rend="#i">,</hi></p>'
 
 
 def test_p_tail():
@@ -156,18 +202,37 @@ def test_p_tail():
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p>1st part. 2nd part. tail</p>'
 
-def test_p_does_not_add_space_to_punctuation():
-    # element = etree.fromstring('<p>1st <hi rend="#b">part</hi>!</p>')
-    # converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
-    # assert etree.tostring(converted) == b'<p>1st <hi rend="#b">part</hi>!</p>'
 
-    # element = etree.fromstring('<p>1st <hi rend="#b">part</hi>, <hi rend="#i">2nd</hi></p>')
-    # converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
-    # assert etree.tostring(converted) == b'<p>1st <hi rend="#b">part</hi>, <hi rend="#i">2nd</hi></p>'
+def test_p_does_not_add_space_to_punctuation():
+    element = etree.fromstring('<p>1st <hi rend="#b">part</hi>!</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>1st <hi rend="#b">part</hi>!</p>'
+
+    element = etree.fromstring('<p>1st <hi rend="#b">part</hi>, <hi rend="#i">2nd</hi></p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>1st <hi rend="#b">part</hi>, <hi rend="#i">2nd</hi></p>'
 
     element = etree.fromstring('<p><hi rend="#b">bold</hi>, <hi rend="#i">italics</hi>, <hi rend="#t">tt</hi>, <del>deleted</del>, <hi rend="#u">underlined</hi>, link.</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p><hi rend="#b">bold</hi>, <hi rend="#i">italics</hi>, <hi rend="#t">tt</hi>, <del>deleted</del>, <hi rend="#u">underlined</hi>, link.</p>'
+
+    # Shouldn't alter spacing on commas or decimals
+    element = etree.fromstring('<p>Test 5,000 <p><ref target="https://example.org">6, 000 Six thousand and, 2.</ref> 3.00 4 .00 5. 00</p></p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
+    # Only remove spacing from commas as decimals 
+    assert etree.tostring(converted) == b'<p>Test 5,000 <ref target="https://example.org">6, 000 Six thousand and, 2.</ref> 3.00 4 .00 5. 00 </p>'
+
+    element = etree.fromstring('<p>Test (text), Test <hi rend="#b">(bold)</hi>, Test (<ref target="https://example.org">link</ref>)</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>Test (text), Test <hi rend="#b">(bold)</hi>, Test (<ref target="https://example.org">link</ref>)</p>'
+
+    element = etree.fromstring('<p>Test (<p>nested text</p>), <p>Test (<hi rend="#b">bold</hi>),</p> Test (<p><ref target="https://example.org">link</ref></p>)</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>Test (nested text), Test (<hi rend="#b">bold</hi>), Test (<ref target="https://example.org">link</ref>)</p>'
+
+    element = etree.fromstring('<p><hi rend="#b">Andrew Huberman, PhD</hi> (<ref target="https://twitter.com/hubermanlab/">@hubermanlab</ref>) <hi rend="#b">,</hi> is a</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p><hi rend="#b">Andrew Huberman, PhD</hi> (<ref target="https://twitter.com/hubermanlab/">@hubermanlab</ref>)<hi rend="#b">,</hi> is a</p>'
 
 
 def test_p_child_p_preserves_tag_order():
@@ -637,6 +702,12 @@ if __name__ == '__main__':
     test_lrucache()
     test_input()
     test_formatting()
+    test_get_first_inline_text()
+    test_get_last_inline_text()
+    test_nested_tags()
+    test_p_tail()
+    test_p_child_p_preserves_tag_order()
+    test_p_does_not_add_space_to_punctuation()
     test_exotic_tags()
     test_images()
     test_nested_images()
