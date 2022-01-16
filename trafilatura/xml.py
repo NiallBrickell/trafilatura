@@ -57,11 +57,21 @@ def clean_attributes(tree):
     return tree
 
 
+def remove_node(n):
+    p = n.getparent()
+    p.remove(n)
+    if not (len(p) or p.text or p.tail):
+        remove_node(p)
+
+
 def remove_empty_elements(tree):
-    '''Remove text elements without text.'''
+    '''Remove text elements without text, and images without src.'''
+    for element in tree.iter('graphic'):
+        if not element.get('src'):
+            remove_node(element)
     for element in tree.iter('fw', 'head', 'hi', 'item', 'p'):
         if len(element) == 0 and text_chars_test(element.text) is False and text_chars_test(element.tail) is False:
-            element.getparent().remove(element)
+            remove_node(element)
     return tree
 
 

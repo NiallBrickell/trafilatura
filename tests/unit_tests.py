@@ -23,7 +23,7 @@ except ImportError:
 
 import trafilatura.filters
 import trafilatura.htmlprocessing
-from trafilatura.core import baseline, bare_extraction, extract, handle_formatting, handle_lists, handle_image, handle_paragraphs, handle_quotes, handle_table, handle_textelem, process_record, sanitize_tree, trim, get_first_inline_text, get_last_inline_text
+from trafilatura.core import baseline, bare_extraction, extract, handle_formatting, handle_lists, handle_image, handle_paragraphs, handle_quotes, handle_table, handle_textelem, process_record, sanitize_tree, trim, get_first_inline_text, get_last_text
 from trafilatura.lru import LRUCache
 from trafilatura.filters import check_html_lang, duplicate_test, textfilter
 from trafilatura.metadata import METADATA_LIST
@@ -161,15 +161,15 @@ def test_get_first_inline_text():
     assert not get_first_inline_text(element)
 
 
-def test_get_last_inline_text():
+def test_get_last_text():
     element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> <p>text</p></p>')
-    assert get_last_inline_text(element) == 'text'
+    assert get_last_text(element) == 'text'
 
     element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> text</p>')
-    assert get_last_inline_text(element) == ' text'
+    assert get_last_text(element) == ' text'
 
     element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> <p>test <p><p>text</p></p></p></p>')
-    assert get_last_inline_text(element) == 'text'
+    assert get_last_text(element) == 'text'
 
 
 def test_nested_tags():
@@ -703,7 +703,7 @@ if __name__ == '__main__':
     test_input()
     test_formatting()
     test_get_first_inline_text()
-    test_get_last_inline_text()
+    test_get_last_text()
     test_nested_tags()
     test_p_tail()
     test_p_child_p_preserves_tag_order()

@@ -114,6 +114,10 @@ def collect_link_info(links_xpath):
 
 def link_density_test(element):
     '''Remove sections which are rich in links (probably boilerplate)'''
+    # If includes an image, forgive
+    if element.findall('graphic') or element.findall('.//graphic'):
+        return False, []
+
     links_xpath, mylist = element.xpath('.//ref'), []
     if links_xpath:
         elemtext = element.text_content()
@@ -145,6 +149,7 @@ def link_density_test(element):
             if linklen >= threshold*elemlen or shortelems/elemnum >= threshold:
                 return True, mylist
             #print(mylist)
+
     return False, mylist
 
 

@@ -232,15 +232,15 @@ def enumerate_now_next(l):
             yield i, (_now, None)
 
 
-def get_last_inline_text(e):
+def get_last_text(e):
     """
-    Used to determine if the next text should include a space. So, only return inline text. 
+    Used to determine if the next text should include a space. 
     """
     tail = e.tail
     if tail:
         return tail
     if not tail and len(e):
-        tail = get_last_inline_text(e[-1])
+        tail = get_last_text(e[-1])
         if tail:
             return tail
     return e.text
@@ -337,7 +337,7 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
                     last_element.tail = concat_with_space(last_element.tail, res.tail)
                 res.tail = None
         else:
-            if should_have_space_prior(get_first_inline_text(res)) and should_have_space_next(get_last_inline_text(last_element)):
+            if should_have_space_prior(get_first_inline_text(res)) and should_have_space_next(get_last_text(last_element)):
                 last_element.tail = (last_element.tail or '') + ' '
             processed_element.append(res)
             last_element = res
@@ -579,9 +579,9 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
         if include_images is False:
             subtree = prune_unwanted_nodes(subtree, DISCARD_IMAGE_ELEMENTS)
         # remove elements by link density
-        # subtree = delete_by_link_density(subtree, 'div', backtracking=True)
-        # subtree = delete_by_link_density(subtree, 'list', backtracking=False)
-        # subtree = delete_by_link_density(subtree, 'p', backtracking=False)
+        subtree = delete_by_link_density(subtree, 'div', backtracking=True)
+        subtree = delete_by_link_density(subtree, 'list', backtracking=False)
+        subtree = delete_by_link_density(subtree, 'p', backtracking=False)
         # also filter fw/head, table and quote elements?
         if favor_precision is True:
             subtree = delete_by_link_density(subtree, 'head', backtracking=False)
