@@ -693,6 +693,7 @@ def compare_extraction(tree, backup_tree, url, body, text, len_text, target_lang
     temppost_algo = try_readability(backup_tree, url)
     algo_text = trim(' '.join(temppost_algo.itertext()))
     len_algo = len(algo_text)
+
     # compare
     LOGGER.debug('extracted length: %s (algorithm) %s (extraction)', len_algo, len_text)
     # conditions to use alternative algorithms
@@ -822,6 +823,12 @@ def determine_returnstring(docmeta, output_format, include_formatting, include_l
     return returnstring
 
 
+def remove_lone_figures(body):
+    for fig in body.xpath('//figure|//source|//picture'):
+        if len(fig) == 0:
+            fig.getparent().remove(fig)
+
+
 def bare_extraction(filecontent, url=None, no_fallback=False,
                     favor_precision=False, favor_recall=False,
                     include_comments=True, output_format='python', target_language=None,
@@ -923,6 +930,10 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
 
         # extract content
         postbody, temp_text, len_text, sure_thing = extract_content(cleaned_tree, favor_precision, favor_recall, include_tables, include_images, include_links, deduplicate, config)
+
+        if include_images is True:
+            # remove lone figures remaining after image extraction
+            remove_lone_figures(postbody)
 
         # compare if necessary
         if no_fallback is False:

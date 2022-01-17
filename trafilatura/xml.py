@@ -59,6 +59,8 @@ def clean_attributes(tree):
 
 def remove_node(n):
     p = n.getparent()
+    if p is None:
+        return
     p.remove(n)
     if not (len(p) or p.text or p.tail):
         remove_node(p)
