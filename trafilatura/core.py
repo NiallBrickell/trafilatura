@@ -597,11 +597,13 @@ def delete_by_link_density(subtree, tagname, backtracking=False):
     return subtree
 
 
-def extract_content(tree, favor_precision=False, favor_recall=False, include_tables=False, include_images=False, include_links=False, deduplicate=False, config=None):
+def extract_content(tree, favor_precision=False, favor_recall=False, include_tables=False, include_images=False, include_links=False, deduplicate=False, config=None, raw_tree=None):
     '''Find the main content of a page using a set of XPath expressions,
        then extract relevant elements, strip them of unwanted subparts and
        convert them'''
     sure_thing = False
+    if raw_tree is None:
+        raw_tree = tree
     result_body = etree.Element('body')
     potential_tags = set(TAG_CATALOG)  # + 'span'?
     tags_to_enumerate = set(['article', 'div', 'main', 'section', 'header'])
@@ -668,7 +670,7 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
     if len(result_body) == 0 or len(temp_text) < config.getint('DEFAULT', 'MIN_EXTRACTED_SIZE'):
         if favor_recall is True:
             potential_tags.add('div')
-        result_body = recover_wild_text(tree, result_body, potential_tags=potential_tags, tags_to_enumerate=tags_to_enumerate, deduplicate=deduplicate, config=config)
+        result_body = recover_wild_text(raw_tree, result_body, potential_tags=potential_tags, tags_to_enumerate=tags_to_enumerate, deduplicate=deduplicate, config=config)
         temp_text = trim(' '.join(result_body.itertext()))
     else:
         sure_thing = True
@@ -881,7 +883,8 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
                     include_links=False, deduplicate=False,
                     date_extraction_params=None,
                     only_with_metadata=False, with_metadata=False,
-                    max_tree_size=None, url_blacklist=None, author_blacklist=None, config=DEFAULT_CONFIG):
+                    max_tree_size=None, url_blacklist=None, author_blacklist=None, config=DEFAULT_CONFIG,
+                    raw_tree=None):
     """Internal function for text extraction returning bare Python variables.
 
     Args:
@@ -935,6 +938,10 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
             LOGGER.error('empty HTML tree for URL %s', url)
             raise ValueError
 
+        if raw_tree:
+            raw_tree = load_html(raw_tree)
+        if raw_tree:
+            raw_tree = convert_tags(raw_tree, include_formatting, include_tables, include_images, include_links)
         # HTML lang check
         if target_language is not None and check_html_lang(tree, target_language) is False:
             LOGGER.error('wrong HTML meta language for URL %s', url)
@@ -974,7 +981,7 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
                 cleaned_tree = prune_unwanted_nodes(cleaned_tree, REMOVE_COMMENTS_XPATH)
 
         # extract content
-        postbody, temp_text, len_text, sure_thing = extract_content(cleaned_tree, favor_precision, favor_recall, include_tables, include_images, include_links, deduplicate, config)
+        postbody, temp_text, len_text, sure_thing = extract_content(cleaned_tree, favor_precision, favor_recall, include_tables, include_images, include_links, deduplicate, config, raw_tree=raw_tree)
 
         if include_images is True:
             # remove lone figures remaining after image extraction
