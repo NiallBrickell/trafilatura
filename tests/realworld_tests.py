@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 
+from lxml import etree
 import pytest
 # https://docs.pytest.org/en/latest/
 
@@ -16,7 +17,8 @@ try:
 except ImportError:
     import chardet
 
-from trafilatura.core import extract
+from trafilatura.core import extract, bare_extraction
+from trafilatura.settings import DEFAULT_CONFIG
 
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -115,6 +117,8 @@ MOCK_PAGES = {
 'https://vancouversun.com/technology/microsoft-moves-to-erase-its-carbon-footprint-from-the-atmosphere-in-climate-push/wcm/76e426d9-56de-40ad-9504-18d5101013d2': 'vancouversun.com.microsoft.html',
 'https://www.lanouvellerepublique.fr/indre-et-loire/commune/saint-martin-le-beau/family-park-la-derniere-saison-a-saint-martin-le-beau': 'lanouvellerepublique.fr.martin.html',
 'https://review.firstround.com/use-this-equation-to-determine-diagnose-and-repair-trust': 'first-round-trust.html',
+'https://www.nytimes.com/live/2021/12/27/world/cdc-quarantine-isolation-guidelines': 'nyt-covid.html',
+'https://www.lennysnewsletter.com/p/demand-driving-supply-marketplaces': 'lennys-newsletter.html'
 }
 # '': '', \
 
@@ -430,6 +434,9 @@ def test_extract(xmloutput):
     result = load_mock_page('https://www.lanouvellerepublique.fr/indre-et-loire/commune/saint-martin-le-beau/family-park-la-derniere-saison-a-saint-martin-le-beau', xmloutput)
     assert result is None
 
+    result = load_mock_page('https://www.nytimes.com/live/2021/12/27/world/cdc-quarantine-isolation-guidelines', xmloutput)
+    assert 'To minimize disruptions as virus cases surge' in result
+
     result = load_mock_page('https://review.firstround.com/use-this-equation-to-determine-diagnose-and-repair-trust', xmloutput)
     assert 'Anne Raimondi was stumped. Two people she managed weren\'t getting along, and it was really impacting progress.' in result
     assert 'Raimondi — who, today, has an all-star track record' in result
@@ -446,6 +453,14 @@ def test_extract(xmloutput):
     #        raise AssertionError(err)
 
 
+def test_spacing():
+    with open(os.path.join(TEST_DIR, 'cache', MOCK_PAGES['https://www.lennysnewsletter.com/p/demand-driving-supply-marketplaces']), 'r', encoding='utf-8') as inputf:
+        htmlstring = inputf.read()
+
+    result = bare_extraction(htmlstring, output_format='xml', include_formatting=True, include_images=True, include_links=True, config=DEFAULT_CONFIG)
+    assert '<p>Did you know that <ref target="https://andrewchen.com/">Andrew Chen</ref>' in etree.tostring(result['body']).decode()
+
 if __name__ == '__main__':
     test_extract(False)
     test_extract(True)
+    test_spacing()

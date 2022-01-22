@@ -326,7 +326,7 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
     processed_element = etree.Element(child.tag)
     processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
     processed_element.tail = clean_element_text(child, from_tail=True, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
-    
+
     if child.tag == 'table':
         return handle_table(child, potential_tags, dedupbool, config, tags_to_enumerate=tags_to_enumerate)
     elif child.tag in P_FORMATTING.union(set(['p', 'div']), FORMATTING, HEADINGS):
@@ -347,6 +347,7 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
             return processed_element
         processed_element = _processed_element
     elif child.tag not in set(potential_tags).union(set(tags_to_enumerate)):
+        LOGGER.info('Removing element %s', child.tag)
         return None
 
     if not is_root and parent_tag in ('p', 'span'):
@@ -384,6 +385,9 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
         processed_element.tail = ' ' + processed_element.tail
 
     # We want to add a space to text if the text is the last part of the element - ie not root or root and children
+    if processed_element.text and len(processed_element) and should_have_space_next(processed_element.text):
+        processed_element.text += ' '
+    
     if not has_tail and not processed_element.tail and processed_element.text and ((not is_root and not is_last_of_root) or len(processed_element)) and should_have_space_next(processed_element.text):
         processed_element.text += ' '
     elif processed_element.tail and not is_last_of_root and not is_root and should_have_space_next(processed_element.tail) and should_have_space_prior(next_text):
@@ -600,7 +604,7 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
     sure_thing = False
     result_body = etree.Element('body')
     potential_tags = set(TAG_CATALOG)  # + 'span'?
-    tags_to_enumerate = set(['article', 'div', 'main', 'section'])
+    tags_to_enumerate = set(['article', 'div', 'main', 'section', 'header'])
     if include_tables is True:
         potential_tags.update(['table', 'td', 'th', 'tr'])
     if include_images is True:
@@ -645,6 +649,7 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
         LOGGER.debug(sorted(potential_tags))
         # extract content
         # list(filter(None.__ne__, processed_elems))
+
         result_body.extend(e for e in
                             # Filter linebreaks as they are found in the previous element
                             [handle_paragraphs_child(e, potential_tags, deduplicate, config, tags_to_enumerate=tags_to_enumerate) for e in subtree]

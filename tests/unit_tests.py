@@ -235,6 +235,15 @@ def test_p_does_not_add_space_to_punctuation():
     assert etree.tostring(converted) == b'<p><hi rend="#b">Andrew Huberman, PhD</hi> (<ref target="https://twitter.com/hubermanlab/">@hubermanlab</ref>)<hi rend="#b">,</hi> is a</p>'
 
 
+def test_p_spacing_for_children():
+    """
+    Should include a space after text if there's a child
+    """
+    element = etree.fromstring('<p>Did you know that <ref target="https://andrewchen.com/" rel="">Andrew Chen</ref> has a book coming out?</p>')
+    converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>Did you know that <ref target="https://andrewchen.com/">Andrew Chen</ref> has a book coming out?</p>'
+
+
 def test_p_child_p_preserves_tag_order():
     """
     Previously, nested p text was being set on the root_element.text, thus invalidating the element/tetx
