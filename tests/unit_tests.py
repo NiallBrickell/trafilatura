@@ -258,6 +258,12 @@ def test_p_child_p_preserves_tag_order():
     assert etree.tostring(converted) == b'<p>1st part. <ref target="https://example.org"><hi rend="#b">2nd part.</hi></ref> middle 3rd part tail</p>'
 
 
+def test_ignores_elements_to_ignore():
+    element = etree.fromstring('<p><p>Text</p> <noscript>test</noscript></p>')
+    converted = handle_paragraphs(element, ['p'], False, ZERO_CONFIG)
+    assert etree.tostring(converted) == b'<p>Text</p>'
+
+
 def test_exotic_tags(xmloutput=False):
     # cover some edge cases with a specially crafted file
     result = load_mock_page('http://exotic_tags', xml_flag=xmloutput, tei_output=True)
@@ -283,7 +289,7 @@ def test_exotic_tags(xmloutput=False):
     converted = handle_paragraphs(element, ['p'], False, ZERO_CONFIG)
     assert etree.tostring(converted) == b'<p>1st part. 2nd part.</p>'
     # malformed lists (common error)
-    result = etree.tostring(handle_lists(etree.fromstring('<list>Description of the list:<item>List item 1</item><item>List item 2</item><item>List item 3</item></list>'), ['p'], False, ZERO_CONFIG))
+    result = etree.tostring(handle_lists(etree.fromstring('<list>Description of the list:<item>List item 1</item><item>List item 2</item><item>List item 3</item></list>'), ['p', 'list', 'item'], False, ZERO_CONFIG))
     assert result.count(b'List item') == 3
     assert b"Description" in result
     # HTML5: <details>
@@ -360,6 +366,23 @@ def test_lrucache():
     assert lru_test.get('tralala') == -1
 
 
+def test_keeps_headers():
+    filepath = os.path.join(TEST_DIR, 'resources', 'nested_headers.html')
+    with open(filepath) as f:
+        my_document = html.fromstring(f.read())
+    my_result = bare_extraction(my_document, output_format='xml', include_formatting=True, include_images=True, config=ZERO_CONFIG)
+    assert 'Guest post by Brian Rothenberg, Partner at Defy.vc, former VP of Growth at Eventbrite, and two-time founder' in  etree.tostring(my_result['body']).decode(), 'one fail'
+    
+
+    assert '<head rend="h3">Guest post by Brian Rothenberg, Partner at Defy.vc, former VP of Growth at Eventbrite, and two-time founder</head>' in etree.tostring(my_result['body']).decode()
+
+
+def test_keeps_classes():
+    my_document = html.fromstring('<html><body><p>Some text <img src="https://example.org/img.png" alt="test" class="author" other-attr="should-be-removed" /></p></body></html>')
+    my_result = bare_extraction(my_document, output_format='xml', include_formatting=True, include_images=True, config=ZERO_CONFIG)
+    assert '<p>Some text <graphic src="https://example.org/img.png" alt="test" class="author"/></p>' in etree.tostring(my_result['body']).decode()
+
+
 def test_formatting():
     '''Test HTML formatting conversion and extraction'''
     # simple
@@ -381,7 +404,7 @@ def test_formatting():
     # wild div
     my_document = html.fromstring('<html><body><article><div><strong>Wild text</strong></div></article></body></html>')
     my_result = extract(my_document, output_format='xml', include_formatting=True, config=ZERO_CONFIG)
-    assert '<p>' in my_result and '<hi rend="#b">Wild text</hi>' in my_result  # no rend so far
+    assert '<hi rend="#b">Wild text</hi>' in my_result  # no rend so far
     my_result = extract(my_document, config=ZERO_CONFIG)
     assert my_result == 'Wild text'
     # links
@@ -440,7 +463,7 @@ def test_formatting():
 
     my_document = html.fromstring('<html><body><article><ul><li>Steuerstrafrechtliche Beratung und Vertretung:<br />Die <a href="/de/compliance-praeventionsberatung">Compliance-Spezialisten</a> helfen Ihnen, die Steuercompliance Ihres Unternehmens zu verbessern, damit Sie keine Rechtsverstöße oder gar eine Strafbarkeit riskieren. Kommt es dennoch zu einem Compliance-Verstoß oder nimmt gar die Staatsanwaltschaft Ermittlungen auf, steht Ihnen ein Anwalt für Steuerstrafrecht und <a href="/de/strafrecht">Strafrecht</a> zur Seite. Wenn es nötig ist, rund um die Uhr.</li></ul></article></body></html>')
     my_result = extract(my_document, output_format='xml', no_fallback=True, include_formatting=True, config=ZERO_CONFIG)
-    assert '<item>Steuerstrafrechtliche Beratung und Vertretung: <lb/>Die Compliance-Spezialisten helfen Ihnen, die Steuercompliance Ihres Unternehmens zu verbessern, damit Sie keine Rechtsverstöße oder gar eine Strafbarkeit riskieren. Kommt es dennoch zu einem Compliance-Verstoß oder nimmt gar die Staatsanwaltschaft Ermittlungen auf, steht Ihnen ein Anwalt für Steuerstrafrecht und Strafrecht zur Seite. Wenn es nötig ist, rund um die Uhr.</item>' in my_result
+    assert '<item>Steuerstrafrechtliche Beratung und Vertretung: <lb/>Die Compliance-Spezialisten helfen Ihnen, die Steuercompliance Ihres Unternehmens zu verbessern, damit Sie keine Rechtsverstöße oder gar eine Strafbarkeit riskieren. Kommt es dennoch zu einem Compliance-Verstoß oder nimmt gar die Staatsanwaltschaft Ermittlungen auf, steht Ihnen ein Anwalt für Steuerstrafrecht und Strafrecht zur Seite. Wenn es nötig ist, rund um die Uhr. </item>' in my_result
 
 
 def test_baseline():
@@ -569,11 +592,12 @@ def test_images():
     assert handle_image(html.fromstring('<img other="test.jpg"/>')) is None
     assert utils.is_image_file('test.jpg') is True
     assert utils.is_image_file('test.txt') is False
-    assert handle_textelem(etree.Element('graphic'), [], False, DEFAULT_CONFIG) is None
+    assert handle_textelem(etree.Element('graphic'), [], [], False, DEFAULT_CONFIG) is None
     with open(os.path.join(RESOURCES_DIR, 'http_sample.html')) as f:
         teststring = f.read()
-    assert 'test.jpg Example image' not in extract(teststring)
-    assert 'test.jpg Example image' in extract(teststring, include_images=True, no_fallback=True)
+    # assert 'test.jpg Example image' not in extract(teststring)
+    res = extract(teststring, include_images=True, no_fallback=True)
+    assert 'test.jpg Example image' in res
     assert '<graphic src="test.jpg" title="Example image"/>' in extract(teststring, include_images=True, no_fallback=True, output_format='xml', config=ZERO_CONFIG)
     # CNN example
     mydoc = html.fromstring('<img class="media__image media__image--responsive" alt="Harry and Meghan last March, in their final royal engagement." data-src-mini="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-small-169.jpg" data-src-xsmall="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-medium-plus-169.jpg" data-src-small="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-large-169.jpg" data-src-medium="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-exlarge-169.jpg" data-src-large="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-super-169.jpg" data-src-full16x9="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-full-169.jpg" data-src-mini1x1="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-small-11.jpg" data-demand-load="loaded" data-eq-pts="mini: 0, xsmall: 221, small: 308, medium: 461, large: 781" src="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-exlarge-169.jpg" data-eq-state="mini xsmall small medium" data-src="//cdn.cnn.com/cnnnext/dam/assets/210307091919-harry-meghan-commonwealth-day-exlarge-169.jpg">')
@@ -592,12 +616,12 @@ def test_nested_images():
     assert '<graphic src="https://cdn.substack.com' in output
 
     output = extract(teststring, include_images=True, include_links=True, no_fallback=True, output_format='xml', config=ZERO_CONFIG)
-    assert '<ref target="https://www.amazon.com/Cold-Start-Problem-Andrew-Chen/dp/0062969749/ref=tmm_hrd_swatch_0">\n        <graphic src="https://cdn.substack.com' in output
+    assert '<ref target="https://www.amazon.com/Cold-Start-Problem-Andrew-Chen/dp/0062969749/ref=tmm_hrd_swatch_0">\n      <graphic src="https://cdn.substack.com' in output
 
 
 def test_links():
     '''Test link extraction function'''
-    assert handle_textelem(etree.Element('ref'), [], False, DEFAULT_CONFIG) is None
+    assert handle_textelem(etree.Element('ref'), [], [], False, DEFAULT_CONFIG) is None
     assert handle_formatting(html.fromstring('<a href="testlink.html">Test link text.</a>'), dedupbool=False, config=ZERO_CONFIG) is not None
     # link with target
     mydoc = html.fromstring('<html><body><p><a href="testlink.html">Test link text.</a></p></body></html>')
@@ -701,6 +725,7 @@ if __name__ == '__main__':
     test_trim()
     test_lrucache()
     test_input()
+    test_keeps_headers()
     test_formatting()
     test_get_first_inline_text()
     test_get_last_text()
@@ -712,6 +737,7 @@ if __name__ == '__main__':
     test_images()
     test_nested_images()
     test_links()
+    test_keeps_classes()
     test_htmlprocessing()
     test_precision_recall()
     test_filters()

@@ -119,7 +119,7 @@ def handle_formatting(element, dedupbool, config):
     return processed_element
 
 
-def handle_lists(element, potential_tags, dedupbool, config):
+def handle_lists(element, potential_tags, dedupbool, config, tags_to_enumerate=[]):
     '''Process lists elements'''
     processed_element = etree.Element(element.tag)
     if element.text is not None:
@@ -127,7 +127,7 @@ def handle_lists(element, potential_tags, dedupbool, config):
 
     for child in element.iter('item'):
         processed_child = handle_paragraphs_child(child, potential_tags=potential_tags, dedupbool=dedupbool, config=config)
-        processed_element.append(processed_child)
+        append_child(processed_element, processed_child, None, tags_to_enumerate)
         child.tag = 'done'
 
     # test if it has children and text. Avoid double tags??
@@ -236,6 +236,8 @@ def get_last_text(e):
     """
     Used to determine if the next text should include a space. 
     """
+    if e is None:
+        return None
     tail = e.tail
     if tail:
         return tail
@@ -278,17 +280,58 @@ def get_first_inline_text(e):
     return text
 
 
-def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=False, has_tail=False, next_text=None):
-    processed_element = etree.Element(child.tag)
+def element_is_empty(res):
+    return (res is None) or len(res) == 0 and not res.text and not res.tail and res.tag in ('p', 'span', 'div', 'hi', 'head')
 
+
+def append_child(processed_element, res, last_element, tags_to_enumerate):
+    if element_is_empty(res):
+        return last_element
+
+    if res.tag in ('span', 'div'):
+        # Append text to parent
+        if res.text:
+            # last_element_text_editable
+            if last_element.tag in ('p', 'span'):
+                last_element.text = concat_with_space(last_element.text, res.text)
+            else:
+                last_element.tail = concat_with_space(last_element.tail, res.text)
+            res.text = None
+
+        if len(res) > 0:
+            for _rc in res:
+                processed_element.append(_rc)
+                last_element = _rc
+
+        if res.tail:
+            # Append tail to parent IF it won't affect the ordering (ie len(res) == 0)
+            if last_element.tag in ('p', 'span'):
+                last_element.text = concat_with_space(last_element.text, res.tail)
+            else:
+                last_element.tail = concat_with_space(last_element.tail, res.tail)
+            res.tail = None
+    elif res.tag in tags_to_enumerate:
+        for x in res:
+            processed_element.append(x)
+            last_element = x
+    else:
+        if last_element is not None and should_have_space_prior(get_first_inline_text(res)) and should_have_space_next(get_last_text(last_element)):
+            last_element.tail = (last_element.tail or '') + ' '
+        processed_element.append(res)
+        last_element = res
+    return last_element
+
+
+def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=True, is_last_of_root=False, has_tail=False, next_text=None, tags_to_enumerate=[], parent_tag=None):
+    processed_element = etree.Element(child.tag)
     processed_element.text = clean_element_text(child, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
     processed_element.tail = clean_element_text(child, from_tail=True, comments_fix=False, deduplicate=dedupbool, preserve_spaces=False, config=config)
-
-    if child.tag == 'p':
-        processed_element.text, processed_element.tail = child.text, child.tail
-    elif child.tag in P_FORMATTING:
+    
+    if child.tag == 'table':
+        return handle_table(child, potential_tags, dedupbool, config, tags_to_enumerate=tags_to_enumerate)
+    elif child.tag in P_FORMATTING.union(set(['p', 'div']), FORMATTING, HEADINGS):
         # correct attributes
-        if child.tag == 'hi':
+        if child.tag in ('hi', 'head') and child.get('rend'):
             processed_element.set('rend', child.get('rend'))
         elif child.tag == 'ref':
             if child.get('target') is not None:
@@ -298,9 +341,22 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
                 processed_element.set('target', child.get('href'))
         processed_element.text, processed_element.tail = child.text, child.tail
         child.tag = 'done'
+    elif child.tag == 'graphic' and 'graphic' in potential_tags:
+        _processed_element = handle_image(child)
+        if _processed_element is None:
+            return processed_element
+        processed_element = _processed_element
+    elif child.tag not in set(potential_tags).union(set(tags_to_enumerate)):
+        return None
 
-    if not is_root:
+    if not is_root and parent_tag in ('p', 'span'):
         handle_child_tag(processed_element)
+
+    if child.tag == 'div':
+        processed_element.tag = 'p'
+
+    if element_is_empty(child):
+        return None
 
     # Iterate over each child element. If text, append to previous element's tail. Else, append to root.
     child_len = len(child)
@@ -308,39 +364,19 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
         is_last_of_root = True
     last_element = processed_element
     for i, (_c, _next) in enumerate_now_next(child):
+        if _c.tag in tags_to_enumerate:
+            for _ce in _c:
+                res = handle_paragraphs_child(_ce, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or i < child_len - 1 or bool(processed_element.tail), next_text=get_first_inline_text(_next) if _next is not None else None, tags_to_enumerate=tags_to_enumerate, parent_tag=processed_element.tag)
+                last_element = append_child(processed_element, res, last_element, tags_to_enumerate)
+            continue
+
         if _c.tag not in potential_tags and _c != 'done':
             LOGGER.debug('unexpected in p: %s %s %s', _c.tag, _c.text, _c.tail)
             continue
 
         # has_tail: If there is an element or text after _c, do not alter text spacing
-        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or i < child_len - 1 or bool(processed_element.tail), next_text=get_first_inline_text(_next) if _next is not None else None)
-        if res.tag == 'span':
-            # Append text to parent
-            if res.text:
-                # last_element_text_editable
-                if last_element.tag in ('p', 'span'):
-                    last_element.text = concat_with_space(last_element.text, res.text)
-                else:
-                    last_element.tail = concat_with_space(last_element.tail, res.text)
-                res.text = None
-
-            if len(res) > 0:
-                for _rc in res:
-                    processed_element.append(_rc)
-                    last_element = _rc
-
-            if res.tail:
-                # Append tail to parent IF it won't affect the ordering (ie len(res) == 0)
-                if last_element.tag in ('p', 'span'):
-                    last_element.text = concat_with_space(last_element.text, res.tail)
-                else:
-                    last_element.tail = concat_with_space(last_element.tail, res.tail)
-                res.tail = None
-        else:
-            if should_have_space_prior(get_first_inline_text(res)) and should_have_space_next(get_last_text(last_element)):
-                last_element.tail = (last_element.tail or '') + ' '
-            processed_element.append(res)
-            last_element = res
+        res = handle_paragraphs_child(_c, potential_tags, dedupbool, config, is_root=False, is_last_of_root=is_root and i == child_len - 1, has_tail=has_tail or i < child_len - 1 or bool(processed_element.tail), next_text=get_first_inline_text(_next) if _next is not None else None, tags_to_enumerate=tags_to_enumerate, parent_tag=processed_element.tag)
+        last_element = append_child(processed_element, res, last_element, tags_to_enumerate)
 
     processed_element.text = trim(processed_element.text)
     processed_element.tail = trim(processed_element.tail)
@@ -356,7 +392,7 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
     return processed_element
 
 
-def handle_paragraphs(element, potential_tags, dedupbool, config):
+def handle_paragraphs(element, potential_tags, dedupbool, config, tags_to_enumerate=[]):
     '''Process paragraphs (p) elements along with their children,
        trim and clean the content'''
     element.attrib.clear()
@@ -368,7 +404,7 @@ def handle_paragraphs(element, potential_tags, dedupbool, config):
             return processed_element
         return None
     # children
-    processed_element = handle_paragraphs_child(element, potential_tags, dedupbool, config)
+    processed_element = handle_paragraphs_child(element, potential_tags, dedupbool, config, tags_to_enumerate=tags_to_enumerate)
     # finish
     if len(processed_element) > 0:
         # clean trailing lb-elements
@@ -394,7 +430,7 @@ def define_cell_type(element):
     return cell_element
 
 
-def handle_table(table_elem, potential_tags, dedupbool, config):
+def handle_table(table_elem, potential_tags, dedupbool, config, tags_to_enumerate=[]):
     '''Process single table element'''
     newtable = etree.Element('table')
     newrow = etree.Element('row')
@@ -428,7 +464,7 @@ def handle_table(table_elem, potential_tags, dedupbool, config):
                     # todo: lists in table cells
                     else:
                         # subcell_elem = etree.Element(child.tag)
-                        processed_subchild = handle_textelem(child, potential_tags.union(['div']), dedupbool, config)
+                        processed_subchild = handle_textelem(child, potential_tags.union(['div']), tags_to_enumerate, dedupbool, config)
                     # add child element to processed_element
                     if processed_subchild is not None:
                         subchildelem = etree.SubElement(newchildelem, processed_subchild.tag)
@@ -467,6 +503,8 @@ def handle_image(element):
     # additional data
     if element.get('alt') is not None:
         processed_element.set('alt', element.get('alt'))
+    if element.get('class') is not None:
+        processed_element.set('class', element.get('class'))
     if element.get('title') is not None:
         processed_element.set('title', element.get('title'))
     # don't return empty elements or elements without source, just None
@@ -478,7 +516,7 @@ def handle_image(element):
     return processed_element
 
 
-def recover_wild_text(tree, result_body, potential_tags=TAG_CATALOG, deduplicate=True, config=None):
+def recover_wild_text(tree, result_body, potential_tags=TAG_CATALOG, tags_to_enumerate=[], deduplicate=True, config=None):
     '''Look for all previously unconsidered wild elements, including outside of the determined
        frame and throughout the document to recover potentially missing text parts'''
     LOGGER.debug('Recovering wild text elements')
@@ -493,23 +531,23 @@ def recover_wild_text(tree, result_body, potential_tags=TAG_CATALOG, deduplicate
         etree.strip_tags(search_tree, 'span')
     potential_tags.add('div')
     result_body.extend(e for e in
-                        [handle_textelem(element, potential_tags, deduplicate, config) for element in search_tree.iter('blockquote', 'code', 'div', 'p', 'pre', 'q', 'quote', 'table', 'lb')]
+                        [handle_textelem(element, potential_tags, tags_to_enumerate, deduplicate, config) for element in search_tree.iter('blockquote', 'code', 'div', 'p', 'pre', 'q', 'quote', 'table', 'lb')]
                         if e is not None)
     return result_body
 
 
-def handle_textelem(element, potential_tags, dedupbool, config):
+def handle_textelem(element, potential_tags, tags_to_enumerate, dedupbool, config):
     '''Process text element and determine how to deal with its content'''
     new_element = None
     # bypass: nested elements
     if element.tag == 'list':
-        new_element = handle_lists(element, potential_tags, dedupbool, config)
+        new_element = handle_lists(element, potential_tags, dedupbool, config, tags_to_enumerate=tags_to_enumerate)
     elif element.tag in CODES_QUOTES:
         new_element = handle_quotes(element, dedupbool, config)
     elif element.tag == 'head':
         new_element = handle_titles(element, dedupbool, config)
     elif element.tag == 'p':
-        new_element = handle_paragraphs(element, potential_tags, dedupbool, config)
+        new_element = handle_paragraphs(element, potential_tags, dedupbool, config, tags_to_enumerate=tags_to_enumerate)
     elif element.tag == 'lb':
         if text_chars_test(element.tail) is True:
             element = process_node(element, dedupbool, config)
@@ -519,7 +557,7 @@ def handle_textelem(element, potential_tags, dedupbool, config):
     elif element.tag in FORMATTING:
         new_element = handle_formatting(element, dedupbool, config) # process_node(element, dedupbool, config)
     elif element.tag == 'table' and 'table' in potential_tags:
-        new_element = handle_table(element, potential_tags, dedupbool, config)
+        new_element = handle_table(element, potential_tags, dedupbool, config, tags_to_enumerate=tags_to_enumerate)
     elif element.tag == 'graphic' and 'graphic' in potential_tags:
         new_element = handle_image(element)
     else:
@@ -562,10 +600,12 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
     sure_thing = False
     result_body = etree.Element('body')
     potential_tags = set(TAG_CATALOG)  # + 'span'?
+    tags_to_enumerate = set(['article', 'div', 'main', 'section'])
     if include_tables is True:
         potential_tags.update(['table', 'td', 'th', 'tr'])
     if include_images is True:
         potential_tags.add('graphic')
+        tags_to_enumerate.update(['figure', 'picture', 'source'])
     if include_links is True:
         potential_tags.add('ref')
     # iterate
@@ -607,7 +647,7 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
         # list(filter(None.__ne__, processed_elems))
         result_body.extend(e for e in
                             # Filter linebreaks as they are found in the previous element
-                            [handle_textelem(e, potential_tags, deduplicate, config) for e in subtree.xpath('.//*')]
+                            [handle_paragraphs_child(e, potential_tags, deduplicate, config, tags_to_enumerate=tags_to_enumerate) for e in subtree]
                             if e is not None)
         # remove trailing titles
         while len(result_body) > 0 and result_body[-1].tag in HEADINGS:
@@ -623,7 +663,7 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
     if len(result_body) == 0 or len(temp_text) < config.getint('DEFAULT', 'MIN_EXTRACTED_SIZE'):
         if favor_recall is True:
             potential_tags.add('div')
-        result_body = recover_wild_text(tree, result_body, potential_tags=potential_tags, deduplicate=deduplicate, config=config)
+        result_body = recover_wild_text(tree, result_body, potential_tags=potential_tags, tags_to_enumerate=tags_to_enumerate, deduplicate=deduplicate, config=config)
         temp_text = trim(' '.join(result_body.itertext()))
     else:
         sure_thing = True
@@ -984,6 +1024,7 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
             docmeta['comments'] = xmltotxt(commentsbody, include_formatting, include_links)
     else:
         docmeta['raw-text'], docmeta['body'], docmeta['commentsbody'] = temp_text, postbody, commentsbody
+    
     return docmeta
 
 

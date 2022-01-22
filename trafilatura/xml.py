@@ -221,7 +221,7 @@ def replace_element_text(element, include_formatting, include_links):
     elif element.text is not None:
         full_text = element.text
     elif element.tail is not None:
-        full_text = element.tail
+        full_text += element.tail
     return full_text
 
 
@@ -256,17 +256,18 @@ def xmltotxt(xmloutput, include_formatting, include_links):
     # iterate and convert to list of strings
     for element in xmloutput.iter('*'):
         # process text
-        if element.text is None and element.tail is None:
-            if element.tag == 'graphic':
-                returnlist.extend(['\n', element.get('src')])
-                if element.get('alt') is not None:
-                    returnlist.extend([' ', element.get('alt')])
-                if element.get('title') is not None:
-                    returnlist.extend([' ', element.get('title')])
+        if element.tag == 'graphic':
+            returnlist.extend(['\n', element.get('src')])
+            if element.get('alt') is not None:
+                returnlist.extend([' ', element.get('alt')])
+            if element.get('title') is not None:
+                returnlist.extend([' ', element.get('title')])
+
+        if element.text is None and element.tail is None and element.tag in ('graphic', 'row', 'table'):
             # newlines for textless elements
-            if element.tag in ('graphic', 'row', 'table'):
-                returnlist.append('\n')
+            returnlist.append('\n')
             continue
+
         textelement = replace_element_text(element, include_formatting, include_links)
         if element.tag in TEXTELEMS:
             returnlist.extend(['\n', textelement, '\n'])
