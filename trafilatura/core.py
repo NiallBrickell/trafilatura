@@ -754,7 +754,7 @@ def compare_extraction(tree, backup_tree, url, body, text, len_text, target_lang
         algo_flag = True
     # borderline cases
     else:
-        if not body.xpath('//p//text()') and len_algo > config.getint('DEFAULT', 'MIN_EXTRACTED_SIZE') * 2:
+        if not body.xpath('//p|quote//text()') and len_algo > config.getint('DEFAULT', 'MIN_EXTRACTED_SIZE') * 2:
             algo_flag = True
         elif len(body.xpath('//table')) > len(body.xpath('//p')) and len_algo > config.getint('DEFAULT', 'MIN_EXTRACTED_SIZE') * 2:
             algo_flag = True
