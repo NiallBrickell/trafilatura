@@ -938,9 +938,9 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
             LOGGER.error('empty HTML tree for URL %s', url)
             raise ValueError
 
-        if raw_tree:
+        if raw_tree is not None:
             raw_tree = load_html(raw_tree)
-        if raw_tree:
+        if raw_tree is not None:
             raw_tree = convert_tags(raw_tree, include_formatting, include_tables, include_images, include_links)
         # HTML lang check
         if target_language is not None and check_html_lang(tree, target_language) is False:
