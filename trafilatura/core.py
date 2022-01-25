@@ -288,7 +288,7 @@ def append_child(processed_element, res, last_element, tags_to_enumerate):
     if element_is_empty(res):
         return last_element
 
-    if res.tag in ('span', 'div'):
+    if res.tag in ('span', 'p', 'div') and last_element.tag in ('p', 'span'):
         # Append text to parent
         if res.text:
             # last_element_text_editable
@@ -340,7 +340,6 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
             elif child.get('href') is not None:
                 processed_element.set('target', child.get('href'))
         processed_element.text, processed_element.tail = child.text, child.tail
-        child.tag = 'done'
     elif child.tag == 'graphic' and 'graphic' in potential_tags:
         _processed_element = handle_image(child)
         if _processed_element is None:
@@ -353,11 +352,13 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
     if not is_root and parent_tag in ('p', 'span'):
         handle_child_tag(processed_element)
 
-    if child.tag == 'div':
+    if processed_element.tag == 'div' and processed_element.text and processed_element.text.strip():
         processed_element.tag = 'p'
 
     if element_is_empty(child):
         return None
+
+    child.tag = 'done'
 
     # Iterate over each child element. If text, append to previous element's tail. Else, append to root.
     child_len = len(child)
@@ -392,6 +393,9 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
         processed_element.text += ' '
     elif processed_element.tail and not is_last_of_root and not is_root and should_have_space_next(processed_element.tail) and should_have_space_prior(next_text):
         processed_element.tail += ' '
+
+    if element_is_empty(processed_element):
+        return None
 
     return processed_element
 
@@ -606,7 +610,7 @@ def extract_content(tree, favor_precision=False, favor_recall=False, include_tab
         raw_tree = tree
     result_body = etree.Element('body')
     potential_tags = set(TAG_CATALOG)  # + 'span'?
-    tags_to_enumerate = set(['article', 'div', 'main', 'section', 'header'])
+    tags_to_enumerate = set(['article', 'main', 'section', 'header'])
     if include_tables is True:
         potential_tags.update(['table', 'td', 'th', 'tr'])
     if include_images is True:
