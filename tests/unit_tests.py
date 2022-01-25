@@ -182,11 +182,11 @@ def test_nested_tags():
 
     element = etree.fromstring('<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'code'], False, ZERO_CONFIG)
-    assert etree.tostring(converted) == b'<p>The easiest way to check if a <p>Python string contains a substring is to use the <code>in</code></p> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p>'
+    assert etree.tostring(converted) == b'<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator is used to check data structures for membership in Python. It returns a Boolean (either <code>True</code> or <code>False</code>) and can be used as follows:</p>'
 
     element = etree.fromstring('<p>The easiest way to check if a <p>Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> </p>operator</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'code'], False, ZERO_CONFIG)
-    assert etree.tostring(converted) == b'<p>The easiest way to check if a Python string contains a substring is to use the <code>in</code> operator. The <code>in</code> operator</p>'
+    assert etree.tostring(converted) == b'<p>The easiest way to check if a <p>Python string contains a substring is to use the <code>in</code> operator. The <code>in</code></p> operator</p>'
     
     element = etree.fromstring('<p><hi rend="#b"><ref target="https://example.org">Test</ref></hi> <hi rend="#b"><ref target="https://example.org">two</ref></hi></p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
@@ -220,7 +220,7 @@ def test_p_does_not_add_space_to_punctuation():
     element = etree.fromstring('<p>Test 5,000 <p><ref target="https://example.org">6, 000 Six thousand and, 2.</ref> 3.00 4 .00 5. 00</p></p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
     # Only remove spacing from commas as decimals 
-    assert etree.tostring(converted) == b'<p>Test 5,000 <p><ref target="https://example.org">6, 000 Six thousand and, 2.</ref> 3.00 4 .00 5. 00 </p>'
+    assert etree.tostring(converted) == b'<p>Test 5,000 <p><ref target="https://example.org">6, 000 Six thousand and, 2.</ref> 3.00 4 .00 5. 00 </p></p>'
 
     element = etree.fromstring('<p>Test (text), Test <hi rend="#b">(bold)</hi>, Test (<ref target="https://example.org">link</ref>)</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
@@ -228,7 +228,7 @@ def test_p_does_not_add_space_to_punctuation():
 
     element = etree.fromstring('<p>Test (<p>nested text</p>), <p>Test (<hi rend="#b">bold</hi>),</p> Test (<p><ref target="https://example.org">link</ref></p>)</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
-    assert etree.tostring(converted) == b'<p>Test (nested text), Test (<hi rend="#b">bold</hi>), Test (<ref target="https://example.org">link</ref>)</p>'
+    assert etree.tostring(converted) == b'<p>Test (<p>nested text</p>), <p>Test (<hi rend="#b">bold</hi>), </p>Test (<p><ref target="https://example.org">link</ref></p>)</p>'
 
     element = etree.fromstring('<p><hi rend="#b">Andrew Huberman, PhD</hi> (<ref target="https://twitter.com/hubermanlab/">@hubermanlab</ref>) <hi rend="#b">,</hi> is a</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref', 'del'], False, ZERO_CONFIG)
@@ -253,18 +253,18 @@ def test_p_child_p_preserves_tag_order():
     """
     element = etree.fromstring('<p>1st part.<p>2nd part.  </p>middle<p> 3rd part</p> tail</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
-    assert etree.tostring(converted) == b'<p>1st part. 2nd part. middle 3rd part tail</p>'
+    assert etree.tostring(converted) == b'<p>1st part. <p>2nd part.</p> middle <p>3rd part</p> tail</p>'
 
     element = etree.fromstring('<p>1st part.<p>2nd part.  </p>middle<p> 3rd part</p> tail</p>')
     element.tail = ' root tail'
     assert etree.tostring(element) == '<p>1st part.<p>2nd part.  </p>middle<p> 3rd part</p> tail</p> root tail'.encode()
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
-    assert etree.tostring(converted) == b'<p>1st part. 2nd part. middle 3rd part tail</p> root tail'
+    assert etree.tostring(converted) == b'<p>1st part. <p>2nd part.</p> middle <p>3rd part</p> tail</p> root tail'
 
     element = etree.fromstring('<p>1st part.<ref target="https://example.org"><hi rend="#b">2nd part.  </hi></ref>middle<p> 3rd part</p> tail</p>')
     converted = handle_paragraphs(element, ['p', 'hi', 'ref'], False, ZERO_CONFIG)
     # Should keep root tail
-    assert etree.tostring(converted) == b'<p>1st part. <ref target="https://example.org"><hi rend="#b">2nd part.</hi></ref> middle 3rd part tail</p>'
+    assert etree.tostring(converted) == b'<p>1st part. <ref target="https://example.org"><hi rend="#b">2nd part.</hi></ref> middle <p>3rd part</p> tail</p>'
 
 
 def test_ignores_elements_to_ignore():
