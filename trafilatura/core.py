@@ -174,12 +174,6 @@ def handle_other_elements(element, potential_tags, dedupbool, config):
     return None
 
 
-def handle_child_tag(e):
-    if e.tag == 'p':
-        e.tag = 'span'
-    return e
-
-
 def should_have_space_prior(x):
     if not x:
         return True
@@ -288,29 +282,7 @@ def append_child(processed_element, res, last_element, tags_to_enumerate):
     if element_is_empty(res):
         return last_element
 
-    if res.tag in ('span', 'p', 'div') and last_element.tag in ('p', 'span'):
-        # Append text to parent
-        if res.text:
-            # last_element_text_editable
-            if last_element.tag in ('p', 'span'):
-                last_element.text = concat_with_space(last_element.text, res.text)
-            else:
-                last_element.tail = concat_with_space(last_element.tail, res.text)
-            res.text = None
-
-        if len(res) > 0:
-            for _rc in res:
-                processed_element.append(_rc)
-                last_element = _rc
-
-        if res.tail:
-            # Append tail to parent IF it won't affect the ordering (ie len(res) == 0)
-            if last_element.tag in ('p', 'span'):
-                last_element.text = concat_with_space(last_element.text, res.tail)
-            else:
-                last_element.tail = concat_with_space(last_element.tail, res.tail)
-            res.tail = None
-    elif res.tag in tags_to_enumerate:
+    if res.tag in tags_to_enumerate:
         for x in res:
             processed_element.append(x)
             last_element = x
@@ -348,9 +320,6 @@ def handle_paragraphs_child(child, potential_tags, dedupbool, config, is_root=Tr
     elif child.tag not in set(potential_tags).union(set(tags_to_enumerate)):
         LOGGER.info('Removing element %s', child.tag)
         return None
-
-    if not is_root and parent_tag in ('p', 'span'):
-        handle_child_tag(processed_element)
 
     if processed_element.tag == 'div' and processed_element.text and processed_element.text.strip():
         processed_element.tag = 'p'
@@ -414,6 +383,8 @@ def handle_paragraphs(element, potential_tags, dedupbool, config, tags_to_enumer
     # children
     processed_element = handle_paragraphs_child(element, potential_tags, dedupbool, config, tags_to_enumerate=tags_to_enumerate)
     # finish
+    if processed_element is None:
+        return None
     if len(processed_element) > 0:
         # clean trailing lb-elements
         if (
