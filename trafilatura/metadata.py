@@ -128,7 +128,7 @@ def examine_meta(tree):
         return metadata
     tags, backup_sitename = [], None
     # skim through meta tags
-    for elem in tree.iterfind('.//head/meta[@content]'):
+    for elem in tree.iterfind('.//*meta[@content]'):
         # content
         if not elem.get('content'):
             continue

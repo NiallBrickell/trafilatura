@@ -736,6 +736,7 @@ def compare_extraction(tree, backup_tree, url, body, text, len_text, target_lang
         else:
             LOGGER.debug('extraction values: %s %s for %s', len_text, len_algo, url)
             algo_flag = False
+
     # apply decision
     if algo_flag is True:
         body, text, len_text = temppost_algo, algo_text, len_algo
@@ -743,9 +744,9 @@ def compare_extraction(tree, backup_tree, url, body, text, len_text, target_lang
     else:
         LOGGER.info('using custom extraction: %s', url)
     # override faulty extraction # len_text < MIN_EXTRACTED_SIZE*10
-    if body.xpath(SANITIZED_XPATH):
+    if body.xpath(SANITIZED_XPATH) and len_text < config.getint('DEFAULT', 'MIN_EXTRACTED_SIZE')*10:
         body2, text2, len_text2, jt_result = justext_rescue(tree, url, target_language, body, 0, '')
-        if jt_result is True:  # and not len_text > 2*len_text2:
+        if jt_result is True and not len_text > 2*len_text2:
             LOGGER.debug('using justext, length: %s', len_text2)  # MIN_EXTRACTED_SIZE:
             body, text, len_text = body2, text2, len_text2
     # try with justext

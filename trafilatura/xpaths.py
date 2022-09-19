@@ -9,7 +9,7 @@ BODY_XPATH = [
     '''.//*[(self::article or self::div or self::main or self::section)][contains(@id, "content-main") or
     contains(@class, "content-main") or contains(@class, "content_main") or
     contains(@id, "content-body") or contains(@class, "content-body") or contains(@id, "content-inner") or
-    contains(@class, "story-body") or
+    contains(@class, "Article_body") or contains(@class, "story-body") or
     @id="article" or @class="post" or @class="entry"]''',
     # contains(@class, "main-content") or
     '''.//*[(self::article or self::div or self::main or self::section)][
@@ -27,8 +27,8 @@ BODY_XPATH = [
     contains(@class, "ArticleContent") or contains(@class, "page-content") or
     contains(@class, "text-content") or contains(@class, "content__body") or
     contains(@id, "body-text") or contains(@class, "body-text") or
-    contains(@class, "article__container") or contains(@id, "art-content") or contains(@class, "art-content")
-    or contains(@id, "contentBody")]''',
+    contains(@class, "article__container") or contains(@id, "art-content") or contains(@class, "art-content") or
+    contains(@id, "contentBody")]''',
     './/article',
     """.//*[(self::article or self::div or self::main or self::section)][contains(@class, 'post-bodycopy') or
     contains(@class, 'storycontent') or contains(@class, 'story-content') or
