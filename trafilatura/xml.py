@@ -245,7 +245,7 @@ def merge_with_parent(element, include_formatting=False, include_links=False):
     parent.remove(element)
 
 
-def xmltotxt(xmloutput, include_formatting, include_links):
+def xmltotxt(xmloutput, include_formatting, include_links, include_headers=True):
     '''Convert to plain text format and optionally preserve formatting as markdown.'''
     returnlist = []
     # etree.strip_tags(xmloutput, 'div', 'main', 'span')
@@ -269,7 +269,10 @@ def xmltotxt(xmloutput, include_formatting, include_links):
             continue
 
         textelement = replace_element_text(element, include_formatting, include_links)
-        if element.tag in TEXTELEMS:
+        if element.tag == 'head' and include_headers is False:
+            returnlist.append('\n')
+            continue
+        elif element.tag in TEXTELEMS:
             returnlist.extend(['\n', textelement, '\n'])
         elif element.tag == 'item':
             returnlist.extend(['\n- ', textelement, '\n'])
