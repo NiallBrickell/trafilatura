@@ -209,7 +209,7 @@ def replace_element_text(element, include_formatting, include_links):
         elif element.tag == 'del':
             element.text = ''.join(['~~', element.text, '~~'])
     # handle links
-    if include_links is True and element.tag == 'ref':
+    if include_links is True and element.tag == 'ref' and element.text is not None:
         try:
             element.text = ''.join(['[', element.text, ']', '(', element.get('target'), ')'])
         except TypeError:
@@ -245,7 +245,7 @@ def merge_with_parent(element, include_formatting=False, include_links=False):
     parent.remove(element)
 
 
-def xmltotxt(xmloutput, include_formatting, include_links, include_headers=True):
+def xmltotxt(xmloutput, include_formatting, include_links, include_headers=True, include_images=True):
     '''Convert to plain text format and optionally preserve formatting as markdown.'''
     returnlist = []
     # etree.strip_tags(xmloutput, 'div', 'main', 'span')
@@ -256,7 +256,7 @@ def xmltotxt(xmloutput, include_formatting, include_links, include_headers=True)
     # iterate and convert to list of strings
     for element in xmloutput.iter('*'):
         # process text
-        if element.tag == 'graphic':
+        if element.tag == 'graphic' and include_images:
             returnlist.extend(['\n', element.get('src')])
             if element.get('alt') is not None:
                 returnlist.extend([' ', element.get('alt')])
