@@ -34,6 +34,7 @@ BODY_XPATH = [
     contains(@class, 'storycontent') or contains(@class, 'story-content') or
     @class='postarea' or @class='art-postcontent' or
     contains(@class, 'theme-content') or contains(@class, 'blog-content') or
+    contains(@class, 'blog_content') or
     contains(@class, 'section-content') or contains(@class, 'single-content') or
     contains(@class, 'single-post') or
     contains(@class, 'main-column') or contains(@class, 'wpb_text_column') or
