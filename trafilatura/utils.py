@@ -139,7 +139,7 @@ def decode_response(response):
         except (LookupError, UnicodeDecodeError): # VISCII: lookup
             LOGGER.warning('wrong encoding detected: %s', guessed_encoding)
     else:
-        LOGGER.error('no encoding detected: %s', guessed_encoding)
+        LOGGER.warning('no encoding detected: %s', guessed_encoding)
     # force decoding # ascii instead?
     if htmltext is None:
         htmltext = str(resp_content, encoding='utf-8', errors='replace')
@@ -200,15 +200,15 @@ def load_html(htmlobject):
             try:
                 tree = html.fromstring(htmlobject.encode('utf8'), parser=HTML_PARSER)
             except Exception as err:
-                LOGGER.error('parser bytestring %s', err)
+                LOGGER.warning('parser bytestring %s', err)
         except Exception as err:
-            LOGGER.error('parsing failed: %s', err)
+            LOGGER.warning('parsing failed: %s', err)
     # default to None
     else:
-        LOGGER.error('this type cannot be processed: %s', type(htmlobject))
+        LOGGER.warning('this type cannot be processed: %s', type(htmlobject))
     # rejection test: is it (well-formed) HTML at all?
     if tree is not None and check_flag is True and len(tree) < 2:
-        LOGGER.error('parsed tree length: %s, wrong data type or not valid HTML', len(tree))
+        LOGGER.warning('parsed tree length: %s, wrong data type or not valid HTML', len(tree))
         tree = None
     #if tree is None:
     #    if isinstance(htmlobject, bytes) or isinstance(htmlobject, str):

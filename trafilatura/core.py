@@ -751,7 +751,7 @@ def compare_extraction(tree, backup_tree, url, body, text, len_text, target_lang
             body, text, len_text = body2, text2, len_text2
     # try with justext
     elif len_text < config.getint('DEFAULT', 'MIN_EXTRACTED_SIZE') or favor_recall is True:
-        LOGGER.error('not enough text %s', url)
+        LOGGER.warning('not enough text %s', url)
         body, text, len_text, jt_result = justext_rescue(tree, url, target_language, body, len_text, text)
         LOGGER.debug('justext length %s', len_text)
     # post-processing: remove unwanted sections
@@ -911,7 +911,7 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
     try:
         tree = load_html(filecontent)
         if tree is None:
-            LOGGER.error('empty HTML tree for URL %s', url)
+            LOGGER.warning('empty HTML tree for URL %s', url)
             raise ValueError
 
         if raw_tree is not None:
@@ -920,7 +920,7 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
             raw_tree = convert_tags(raw_tree, include_formatting, include_tables, include_images, include_links)
         # HTML lang check
         if target_language is not None and check_html_lang(tree, target_language) is False:
-            LOGGER.error('wrong HTML meta language for URL %s', url)
+            LOGGER.warning('wrong HTML meta language for URL %s', url)
             raise ValueError
 
         # backup (or not) for further processing
@@ -937,7 +937,7 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
                     x is None for x in
                     [docmeta['date'], docmeta['title'], docmeta['url']]
                 ):
-                LOGGER.error('no metadata for URL %s', url)
+                LOGGER.warning('no metadata for URL %s', url)
                 raise ValueError
         else:
             docmeta = dict.fromkeys(METADATA_LIST)
@@ -982,7 +982,7 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
                 etree.strip_tags(postbody, 'hi')
             # still too long, raise an error
             if len(postbody) > max_tree_size:
-                LOGGER.error('output tree too long: %s, discarding file', len(postbody))
+                LOGGER.warning('output tree too long: %s, discarding file', len(postbody))
                 raise ValueError
         # size checks
         if len_comments < config.getint('DEFAULT', 'MIN_EXTRACTED_COMM_SIZE'):
@@ -993,12 +993,12 @@ def bare_extraction(filecontent, url=None, no_fallback=False,
 
         # check duplicates at body level
         if deduplicate is True and duplicate_test(postbody, config) is True:
-            LOGGER.error('duplicate document for URL %s', url)
+            LOGGER.warning('duplicate document for URL %s', url)
             raise ValueError
 
         # sanity check on language
         if target_language is not None and language_filter(temp_text, temp_comments, target_language, docmeta) is True:
-            LOGGER.error('wrong language for URL %s', url)
+            LOGGER.warning('wrong language for URL %s', url)
             raise ValueError
 
     except ValueError:
